@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import pickle
 
@@ -25,7 +26,20 @@ def prepare_entries(takeout_dir):
         records = read_entries(takeout_dir)
         with open(cache_file, 'wb') as fout:
             pickle.dump(records, fout)
-        
+
+        records_json = [
+            {
+                'time': d.timestamp.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'product': d.product,
+                'action': d.action,
+                'params': [p for p in d.params if p],
+                'url': d.urls[0] if d.urls else None,
+            }
+            for d in records
+        ]
+        with open('cache/google_entries.json', 'w') as fout:
+            json.dump(records_json, fout)
+
     df = pandas.DataFrame([
         {
             'timestamp': record.timestamp.replace(tzinfo=None),
