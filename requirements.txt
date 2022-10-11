@@ -1,0 +1,8 @@
+pandas
+streamlit
+scrapy
+beautifulsoup4
+tqdm
+tldextract
+lxml
+python-dateutil
