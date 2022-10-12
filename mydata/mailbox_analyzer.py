@@ -7,21 +7,20 @@ PYTHONIOENCODING=utf-8 python mailbox_analyzer.py
 """
 
 import collections
-import glob
+import io
 import json
 import mailbox
 import re
 import sys
 import warnings
+import zipfile
 from pathlib import Path
 
 import pandas
+import requests
 import tldextract
 from bs4 import BeautifulSoup
 from tqdm import tqdm
-import requests
-import zipfile
-import io
 
 from mydata.email_data import Message
 
@@ -322,13 +321,13 @@ def parse_mbox(exports_dir='exports'):
     n_failed_to_parse = 0
     messages = {}
 
-    mbox_files = glob.glob('**/*.mbox', root_dir=exports_dir, recursive=True)
+    mbox_files = list(Path(exports_dir).glob('**/*.mbox'))
     for mbox_file_idx, mbox_file in enumerate(mbox_files):
-        mbox = mailbox.mbox(Path(exports_dir) / mbox_file)
+        mbox = mailbox.mbox(mbox_file)
 
         mbox_size = len(mbox)
 
-        desc = f'[{mbox_file_idx + 1}/{len(mbox_files)}] {mbox_file}'
+        desc = f'[{mbox_file_idx + 1}/{len(mbox_files)}] {mbox_file.relative_to(exports_dir)}'
         for msg_index, mbox_msg in tqdm(enumerate(mbox), total=mbox_size, desc=desc):
             try:
                 message = parse_mbox_message(mbox_msg)
