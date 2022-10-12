@@ -322,9 +322,9 @@ def parse_mbox(exports_dir='exports'):
     n_failed_to_parse = 0
     messages = {}
 
-    mbox_files = glob.glob('**/*.mbox', root_dir=exports_dir, recursive=True)
+    mbox_files = glob.glob(str(Path(exports_dir)/'**/*.mbox'), recursive=True)
     for mbox_file_idx, mbox_file in enumerate(mbox_files):
-        mbox = mailbox.mbox(Path(exports_dir) / mbox_file)
+        mbox = mailbox.mbox(mbox_file)
 
         mbox_size = len(mbox)
 

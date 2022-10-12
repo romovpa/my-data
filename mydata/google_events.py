@@ -113,8 +113,8 @@ def parse_cell(cell_el):
 
 def read_entries(takeout_dir):
     activity_logs = (
-            glob.glob('**/My Activity/**/*.html', root_dir=takeout_dir) +
-            glob.glob('**/YouTube and YouTube Music/history/*.html', root_dir=takeout_dir)
+            glob.glob(str(Path(takeout_dir)/'**/My Activity/**/*.html')) +
+            glob.glob(str(Path(takeout_dir)/'**/YouTube and YouTube Music/history/*.html'))
     )
 
     cells = []
