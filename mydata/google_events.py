@@ -120,12 +120,12 @@ def read_entries(takeout_dir='exports'):
 
     cells = []
     for filename in activity_logs:
-        with open(os.path.join(takeout_dir, filename)) as fin:
+        with open(filename) as fin:
             content = fin.read()
         doc = scrapy.Selector(text=content)
         cells.extend([
             parse_cell(cell_el)
-            for cell_el in tqdm(doc.css('div.outer-cell'), desc=filename)
+            for cell_el in tqdm(doc.css('div.outer-cell'), desc=str(filename))
         ])
 
     return cells
