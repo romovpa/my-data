@@ -4,6 +4,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import List
+from pathlib import Path
 
 import dateutil.parser
 import scrapy
@@ -111,20 +112,20 @@ def parse_cell(cell_el):
     )
 
 
-def read_entries(takeout_dir):
+def read_entries(takeout_dir='exports'):
     activity_logs = (
-            glob.glob('**/My Activity/**/*.html', root_dir=takeout_dir) +
-            glob.glob('**/YouTube and YouTube Music/history/*.html', root_dir=takeout_dir)
+            list(Path(takeout_dir).glob('**/My Activity/**/*.html')) +
+            list(Path(takeout_dir).glob('**/YouTube and YouTube Music/history/*.html'))
     )
 
     cells = []
     for filename in activity_logs:
-        with open(os.path.join(takeout_dir, filename)) as fin:
+        with open(filename) as fin:
             content = fin.read()
         doc = scrapy.Selector(text=content)
         cells.extend([
             parse_cell(cell_el)
-            for cell_el in tqdm(doc.css('div.outer-cell'), desc=filename)
+            for cell_el in tqdm(doc.css('div.outer-cell'), desc=str(filename))
         ])
 
     return cells
