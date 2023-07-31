@@ -6,3 +6,4 @@ tqdm
 tldextract
 lxml
 python-dateutil
+rdflib
