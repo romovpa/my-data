@@ -25,24 +25,6 @@ class CSVWriter:
         self.csvfile.close()
 
 
-def get_email_address(string):
-    if not isinstance(string, str):
-        return
-    email = re.findall(r"<(.+?)>", string)
-    if not email:
-        email = list(filter(lambda y: "@" in y, string.split()))
-    return email[0] if email else None
-
-
-def get_email_domain(string):
-    if not isinstance(string, str):
-        return
-    email = re.findall(r"<.+@(.+)>", string)
-    if not email:
-        email = list(filter(lambda y: "@" in y, string.split()))
-    return email[0].lower() if email else None
-
-
 def rdf_table(records, header=None, limit=100, graph=None):
     """Make a displayable table from SPAQRL query results or list of triples."""
 

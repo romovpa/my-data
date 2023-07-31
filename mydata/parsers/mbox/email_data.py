@@ -1,3 +1,4 @@
+import re
 import email
 import email.policy
 import email.utils
@@ -239,3 +240,21 @@ class Message:
         ...     f.write(attachment.get_content())
         """
         return list(self.message.iter_attachments())
+
+
+def get_email_address(string):
+    if not isinstance(string, str):
+        return
+    email = re.findall(r"<(.+?)>", string)
+    if not email:
+        email = list(filter(lambda y: "@" in y, string.split()))
+    return email[0] if email else None
+
+
+def get_email_domain(string):
+    if not isinstance(string, str):
+        return
+    email = re.findall(r"<.+@(.+)>", string)
+    if not email:
+        email = list(filter(lambda y: "@" in y, string.split()))
+    return email[0].lower() if email else None

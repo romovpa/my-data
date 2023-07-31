@@ -22,7 +22,7 @@ import tldextract
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from mydata.email_data import Message
+from mydata.parsers.mbox.email_data import Message
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -399,5 +399,3 @@ def discover_and_parse_mbox(exports_dir='exports', cache_dir='cache'):
     return accounts
 
 
-if __name__ == '__main__':
-    discover_and_parse_mbox()

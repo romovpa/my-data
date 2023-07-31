@@ -5,7 +5,7 @@ import pickle
 import pandas
 import streamlit as st
 
-from mydata.google_events import read_entries
+from mydata.parsers.google_activity import read_entries
 
 st.set_page_config(
     page_title='Google Activity',

@@ -3,7 +3,7 @@ import collections
 import pandas
 import streamlit as st
 
-from mydata import mailbox_analyzer
+from mydata.parsers.mbox import mailbox_analyzer
 
 
 @st.experimental_memo
