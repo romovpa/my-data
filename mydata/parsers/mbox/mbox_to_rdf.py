@@ -8,6 +8,8 @@ import traceback
 from bs4 import BeautifulSoup
 from rdflib import Graph, Literal, URIRef, BNode
 from rdflib.namespace import XSD, Namespace, RDF
+from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
+from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
 from tqdm import tqdm
 
 from mydata.parsers.mbox.email_data import Message
@@ -40,7 +42,7 @@ def get_attachment_id(attachment):
     if filename is None:
         filename = ''
 
-    return hashlib.sha1(content_hash + '$' + filename).hexdigest()
+    return hashlib.sha1((content_hash + '$' + filename).encode()).hexdigest()
 
 
 def message_to_rdf(mbox_msg):
@@ -122,12 +124,7 @@ def message_to_rdf(mbox_msg):
     return triples
 
 
-def parse_mbox(exports_dir='exports', cache_dir='cache'):
-    graph = Graph()
-    graph.bind('rdf', RDF)
-    graph.bind('schema', SCHEMA)
-    graph.bind('xsd', XSD)
-
+def parse_mbox(graph, exports_dir='exports', cache_dir='cache'):
     mbox_files = list(Path(exports_dir).glob('**/*.mbox'))
     for mbox_file_idx, mbox_file in enumerate(mbox_files):
         mbox = mailbox.mbox(mbox_file)
@@ -150,8 +147,32 @@ def parse_mbox(exports_dir='exports', cache_dir='cache'):
                 traceback.print_exc()
                 continue
 
+
+def main(exports_dir='exports', cache_dir='cache'):
+    graph = Graph()
+    graph.bind('rdf', RDF)
+    graph.bind('schema', SCHEMA)
+    graph.bind('xsd', XSD)
+
+    parse_mbox(graph, exports_dir=exports_dir, cache_dir=cache_dir)
+
     graph.serialize(Path(cache_dir) / 'mbox.ttl', format='turtle')
 
 
+def main_fuseki(exports_dir='exports', cache_dir='cache'):
+    """
+    Demo of using SPARQLUpdateStore to load data into a Fuseki server.
+    This solution is very slow.
+    """
+    store = SPARQLUpdateStore()
+    query_endpoint = 'http://localhost:3030/mydata/query'
+    update_endpoint = 'http://localhost:3030/mydata/update'
+    store.open((query_endpoint, update_endpoint))
+
+    graph = Graph(store, identifier=DATASET_DEFAULT_GRAPH_ID)
+
+    parse_mbox(graph, exports_dir=exports_dir, cache_dir=cache_dir)
+
+
 if __name__ == '__main__':
-    parse_mbox()
+    main()
