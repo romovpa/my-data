@@ -46,6 +46,7 @@ class Address(NamedTuple):
     def normalized(self):
         """Normalize email address."""
         addr = self.email or ""
+        addr = re.sub(r'[^a-zA-Z0-9_.-@]', '', addr)
         try:
             addr_name, domain_part = addr.strip().rsplit("@", 1)
         except ValueError:

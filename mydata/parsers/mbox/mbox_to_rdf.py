@@ -5,10 +5,9 @@ from pathlib import Path
 import hashlib
 import traceback
 
-import rdflib
 from bs4 import BeautifulSoup
-from rdflib import Graph, Literal, RDF, URIRef, BNode
-from rdflib.namespace import FOAF, XSD, Namespace, RDF
+from rdflib import Graph, Literal, URIRef, BNode
+from rdflib.namespace import XSD, Namespace, RDF
 from tqdm import tqdm
 
 from mydata.parsers.mbox.email_data import Message
@@ -27,6 +26,21 @@ def get_message_ref(message_id):
 def get_thread_ref(thread_id):
     thread_id_hash = hashlib.sha1(thread_id.strip().encode()).hexdigest()
     return MYDATA[f'mbox/thread/{thread_id_hash}']
+
+
+def get_attachment_id(attachment):
+    content = attachment.get_content()
+    if content is None:
+        content = b''
+    if isinstance(content, str):
+        content = content.encode()
+    content_hash = hashlib.sha1(content).hexdigest()
+
+    filename = attachment.get_filename()
+    if filename is None:
+        filename = ''
+
+    return hashlib.sha1(content_hash + '$' + filename).hexdigest()
 
 
 def message_to_rdf(mbox_msg):
@@ -89,11 +103,10 @@ def message_to_rdf(mbox_msg):
     if msg.addr_reply_to is not None:
         triples.append((message_ref, SCHEMA.replyTo, URIRef(f'mailto:{msg.addr_reply_to.normalized}')))
 
+
     # Attachments
     for attachment in msg.attachments:
-        attachment_id = hashlib.sha1(
-            (hashlib.sha1(attachment.get_content()).hexdigest() + '-' + attachment.get_filename()).encode()
-        ).hexdigest()
+        attachment_id = get_attachment_id(attachment)
         attachment_ref = message_ref + f'/attachment/{attachment_id}'
 
         triples.append((message_ref, SCHEMA.attachment, attachment_ref))
