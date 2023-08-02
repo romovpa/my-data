@@ -23,3 +23,23 @@ WHERE {
 }
 ORDER BY DESC(?date)
 ```
+
+## Number of web visits by month and browser
+
+```sparql
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX b: <https://mydata-schema.org/browser/>
+PREFIX m: <mydata://>
+
+SELECT ?yearMonth ?browser (COUNT(DISTINCT ?obj) AS ?visits) (COUNT(DISTINCT ?url) AS ?urls)
+WHERE {
+    ?obj rdf:type m:WebVisit .
+    ?obj m:browser ?browser .
+    ?obj m:url ?url .
+    ?obj m:time ?time .
+    BIND(CONCAT(STR(YEAR(?time)), "-", STR(MONTH(?time))) AS ?yearMonth)
+}
+GROUP BY ?yearMonth ?browser
+ORDER BY ?yearMonth ?browser
+LIMIT 100
+```
