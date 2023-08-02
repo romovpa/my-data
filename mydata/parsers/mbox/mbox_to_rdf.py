@@ -10,6 +10,7 @@ from rdflib import Graph, Literal, URIRef, BNode
 from rdflib.namespace import XSD, Namespace, RDF
 from rdflib.plugins.stores.sparqlstore import SPARQLUpdateStore
 from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
+from rdflib.term import _is_valid_uri
 from tqdm import tqdm
 
 from mydata.parsers.mbox.email_data import Message
@@ -88,22 +89,32 @@ def message_to_rdf(mbox_msg):
 
     # Addresses
     if msg.addr_from is not None:
-        triples.append((message_ref, SCHEMA.sender, URIRef(f'mailto:{msg.addr_from.normalized}')))
+        uri = f'mailto:{msg.addr_from.normalized}'
+        if _is_valid_uri(uri):
+            triples.append((message_ref, SCHEMA.sender, URIRef(uri)))
         triples.append((message_ref, SCHEMA.senderEmail, Literal(msg.addr_from.email)))
         if msg.addr_from.name:
             triples.append((message_ref, SCHEMA.senderName, Literal(msg.addr_from.name)))
 
     if msg.addrs_to is not None:
         for addr in msg.addrs_to:
-            triples.append((message_ref, SCHEMA.recipient, URIRef(f'mailto:{addr.normalized}')))
+            uri = f'mailto:{addr.normalized}'
+            if _is_valid_uri(uri):
+                triples.append((message_ref, SCHEMA.recipient, URIRef(uri)))
     if msg.addrs_cc is not None:
         for addr in msg.addrs_cc:
-            triples.append((message_ref, SCHEMA.ccRecipient, URIRef(f'mailto:{addr.normalized}')))
+            uri = f'mailto:{addr.normalized}'
+            if _is_valid_uri(uri):
+                triples.append((message_ref, SCHEMA.ccRecipient, URIRef(uri)))
     if msg.addrs_bcc is not None:
         for addr in msg.addrs_bcc:
-            triples.append((message_ref, SCHEMA.bccRecipient, URIRef(f'mailto:{addr.normalized}')))
+            uri = f'mailto:{addr.normalized}'
+            if _is_valid_uri(uri):
+                triples.append((message_ref, SCHEMA.bccRecipient, URIRef(uri)))
     if msg.addr_reply_to is not None:
-        triples.append((message_ref, SCHEMA.replyTo, URIRef(f'mailto:{msg.addr_reply_to.normalized}')))
+        uri = f'mailto:{msg.addr_reply_to.normalized}'
+        if _is_valid_uri(uri):
+            triples.append((message_ref, SCHEMA.replyTo, URIRef(uri)))
 
 
     # Attachments
