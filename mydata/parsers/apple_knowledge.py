@@ -67,7 +67,7 @@ def parse_knowldegeC(graph, db_file):
         """)
 
         for row in cur:
-            event_ref = APPLE[f'apple/{row["type"]}/{row["uuid"]}']
+            event_ref = APPLE[f'apple/{row["type"].strip("/")}/{row["uuid"]}']
 
             graph.add((event_ref, RDF.type, APPLE[f'event/{row["type"].lstrip("/")}']))
             graph.add((event_ref, APPLE.uuid, Literal(row['uuid'], datatype=XSD.string)))
