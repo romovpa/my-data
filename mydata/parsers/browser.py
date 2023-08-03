@@ -2,16 +2,15 @@
 Parse web browser events from Chrome and Safari history databases.
 """
 import glob
-import shutil
 from datetime import datetime
 import hashlib
-import sqlite3
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from sqlite3 import OperationalError
 
 from rdflib import Graph, Literal
 from rdflib.namespace import XSD, Namespace, RDF
 
+from mydata.utils import SQLiteConnection
 
 SCHEMA = Namespace('https://schema.org/')
 BROWSER = Namespace('https://mydata-schema.org/browser/')
@@ -21,17 +20,11 @@ MYDATA = Namespace('mydata://')
 def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
     print(f'Parsing {db_file}')
 
-    with TemporaryDirectory() as tmpdir:
-        shutil.copyfile(db_file, Path(tmpdir) / 'db')
-
-        conn = sqlite3.connect(Path(tmpdir) / 'db')
-        conn.row_factory = sqlite3.Row
-
+    with SQLiteConnection(db_file) as db:
         try:
-            cur = conn.execute(sql)
-        except sqlite3.OperationalError:
-            print(f'Failed to parse {db_file}')
-            shutil.rmtree(tmpdir)
+            cur = db.sql(sql)
+        except OperationalError:
+            print(f'Error parsing {db_file}')
             return
 
         for row in cur:
@@ -53,8 +46,6 @@ def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
                 graph.add((visit_ref, MYDATA['browser'], Literal(browser)))
             if has_duration and row['duration'] is not None:
                 graph.add((visit_ref, MYDATA['duration'], Literal(row['duration'], datatype=XSD['float'])))
-
-        shutil.rmtree(tmpdir)
 
 
 def parse_chrome_history(graph, db_file):

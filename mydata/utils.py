@@ -1,5 +1,8 @@
 import csv
 import re
+import shutil
+import sqlite3
+from tempfile import TemporaryDirectory
 
 from IPython.display import HTML
 import jinja2
@@ -76,3 +79,38 @@ def rdf_table(records, header=None, limit=100, graph=None):
     rendered = template.render(**locals())
 
     return HTML(rendered)
+
+
+class SQLiteConnection:
+    """
+    Makes a temporary copy of a SQLite database to overcome the locking issue and sets the row factory.
+    """
+
+    def __init__(self, db_file):
+        self.db_file = db_file
+        self.temp_dir = TemporaryDirectory()
+        self.conn = None
+
+    def __enter__(self):
+        # Create a temporary copy of the database file
+        temp_db_path = shutil.copy(self.db_file, self.temp_dir.name)
+
+        # Connect to the temporary database
+        self.conn = sqlite3.connect(temp_db_path)
+        self.conn.row_factory = sqlite3.Row
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Close the connection
+        if self.conn:
+            self.conn.close()
+
+        # Cleanup the temporary directory
+        self.temp_dir.cleanup()
+
+    def sql(self, sql_query):
+        # Execute the given SQL query and return the rows
+        cursor = self.conn.cursor()
+        cursor.execute(sql_query)
+        return cursor
