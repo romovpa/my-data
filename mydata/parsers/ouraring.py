@@ -4,9 +4,6 @@ Parser for Oura ring data.
 
 import json
 import glob
-from pathlib import Path
-from datetime import datetime
-from tqdm import tqdm
 from rdflib import Graph, Literal
 from rdflib.namespace import XSD, Namespace, RDF
 from dateutil.parser import parse as parse_date
@@ -20,8 +17,6 @@ MYDATA = Namespace('mydata://')
 def parse_ouraring(graph, data_file):
     with open(data_file) as fin:
         sleep_data = json.load(fin)
-
-    events = []
 
     for record in sleep_data['sleep']:
         start_time = parse_date(record['bedtime_start'])
