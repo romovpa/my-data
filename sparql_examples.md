@@ -1,5 +1,7 @@
 # Gallery of SPARQL queries
 
+TODO Create a repository of example queries like in [Wikidata](https://query.wikidata.org/) (see "Examples" button).
+
 ## List email attachments
 
 ```sparql
@@ -42,4 +44,23 @@ WHERE {
 GROUP BY ?yearMonth ?browser
 ORDER BY ?yearMonth ?browser
 LIMIT 100
+```
+
+## Number of google takeout events by month
+
+```sparql
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX g: <https://mydata-schema.org/google/>
+PREFIX m: <mydata://>
+
+SELECT ?yearMonth (COUNT(DISTINCT ?obj) AS ?visits) (COUNT(DISTINCT ?url) AS ?urls)
+WHERE {
+    ?obj rdf:type g:Activity .
+    ?obj g:url ?url .
+    ?obj g:time ?time .
+    BIND(CONCAT(STR(YEAR(?time)), "-", STR(MONTH(?time))) AS ?yearMonth)
+}
+GROUP BY ?yearMonth
+ORDER BY DESC(?yearMonth)
 ```
