@@ -14,7 +14,7 @@ import itertools
 import jinja2
 import rdflib
 from flask import Flask, render_template
-from rdflib import URIRef, Literal
+from rdflib import URIRef, Literal, Graph
 from rdflib.plugins.stores.sparqlstore import SPARQLStore
 
 app = Flask(__name__)
@@ -22,10 +22,37 @@ app = Flask(__name__)
 store = SPARQLStore('http://localhost:3030/ds/sparql')
 graph = rdflib.ConjunctiveGraph(store)
 
+schema = Graph().parse('schema_standard.ttl')
+
 namespace_manager = graph.namespace_manager if graph is not None else None
 app.jinja_env.filters["is_uri"] = lambda obj: isinstance(obj, URIRef)
 app.jinja_env.filters["is_literal"] = lambda obj: isinstance(obj, Literal)
 app.jinja_env.filters["n3_notation"] = lambda obj: obj.n3(namespace_manager)
+
+
+def get_label(uri: rdflib.URIRef):
+    label = schema.value(
+        uri,
+        URIRef('http://www.w3.org/2000/01/rdf-schema#label')
+    )
+    if label is not None:
+        return label.value
+    else:
+        return uri.n3(namespace_manager)
+
+
+def get_description(uri: rdflib.URIRef):
+    comment = schema.value(
+        uri,
+        URIRef('http://www.w3.org/2000/01/rdf-schema#comment')
+    )
+    if comment is not None:
+        return comment.value
+
+
+app.jinja_env.filters["label"] = get_label
+app.jinja_env.filters["description"] = get_description
+
 
 
 def query_all_predicates(graph: rdflib.Graph, uri: Union[str, rdflib.URIRef]):

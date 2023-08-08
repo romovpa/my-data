@@ -57,11 +57,9 @@
 				{% for (direction, predicate), group in grouped_predicates %}
 		            <tr class="{{ loop.cycle('odd', 'even') }}">
 		                <td class="col-2">
-		                    {% if direction.value == "forward" %}
-		                    {{ predicate }}
-		                    {% else %}
-		                    is {{ predicate }} of
-		                    {% endif %}
+		                    {% if direction.value == "backward" %} is {% endif %}
+		                    <span title="{{ predicate|description }}"><a href="{{ predicate }}">{{ predicate|label }}</a></span>
+							{% if direction.value == "backward" %} of {% endif %}
 		                </td>
 		                <td class="col-10 text-break">
 							<ul>
