@@ -7,3 +7,4 @@ tldextract
 lxml
 python-dateutil
 rdflib
+flask

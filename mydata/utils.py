@@ -1,5 +1,4 @@
 import csv
-import re
 import shutil
 import sqlite3
 from tempfile import TemporaryDirectory
@@ -8,7 +7,6 @@ from IPython.display import HTML
 import jinja2
 import itertools
 import rdflib
-import rdflib.plugins.sparql.processor
 from rdflib.term import URIRef, Literal
 
 
@@ -32,7 +30,7 @@ def rdf_table(records, header=None, limit=100, graph=None):
     """Make a displayable table from SPAQRL query results or list of triples."""
 
     if (
-        isinstance(records, rdflib.plugins.sparql.processor.SPARQLResult)
+        isinstance(records, rdflib.query.Result)
         and header is None
     ):
         header = records.vars
