@@ -9,10 +9,11 @@ http://localhost:4999/
 """
 
 from typing import Union
+import itertools
 
 import jinja2
 import rdflib
-from flask import Flask
+from flask import Flask, render_template
 from rdflib import URIRef, Literal
 from rdflib.plugins.stores.sparqlstore import SPARQLStore
 
@@ -20,6 +21,11 @@ app = Flask(__name__)
 
 store = SPARQLStore('http://localhost:3030/ds/sparql')
 graph = rdflib.ConjunctiveGraph(store)
+
+namespace_manager = graph.namespace_manager if graph is not None else None
+app.jinja_env.filters["is_uri"] = lambda obj: isinstance(obj, URIRef)
+app.jinja_env.filters["is_literal"] = lambda obj: isinstance(obj, Literal)
+app.jinja_env.filters["n3_notation"] = lambda obj: obj.n3(namespace_manager)
 
 
 def query_all_predicates(graph: rdflib.Graph, uri: Union[str, rdflib.URIRef]):
@@ -78,50 +84,6 @@ def hello_world():
 @app.route("/resource/<path:uri>")
 def resource(uri):
     predicates = query_all_predicates(graph, uri)
+    grouped_predicates = itertools.groupby(predicates, lambda row: (row.direction, row.predicate))
 
-    template = """
-        <h1>{{ uri }}</h1>
-        
-        <table class="table table-hover table-sm table-light">
-		    <thead>
-                <tr>
-                    <th class="col-xs-3 ">Property</th>
-                    <th class="col-xs-9 px-3">Value</th>
-                </tr>
-		    </thead>
-		    <tbody>
-		        {% for direction, predicate, node in predicates %}
-		            <tr class="{{ loop.cycle('odd', 'even') }}">
-		                <td>
-		                    {% if direction == "forward" %}
-		                    {{ predicate }}
-		                    {% else %}
-		                    is {{ predicate }} of
-		                    {% endif %}
-		                </td>
-		                <td>
-		                    {% if node|is_uri %}
-		                    <a href="/resource/{{ node }}">{{ node }}</a>
-		                    {% elif node|is_literal %}
-		                    {{ node.value }}
-		                    {% else %}
-		                    {{ node }}
-		                    {% endif %}
-		                </td>
-		            </tr>
-		        {% endfor %}
-		    </tbody>
-        </table>
-    """
-
-    namespace_manager = graph.namespace_manager if graph is not None else None
-    env = jinja2.Environment(loader=jinja2.BaseLoader())
-    env.filters["is_uri"] = lambda obj: isinstance(obj, URIRef)
-    env.filters["is_literal"] = lambda obj: isinstance(obj, Literal)
-    env.filters["n3_notation"] = lambda obj: obj.n3(namespace_manager)
-
-    template = env.from_string(template)
-
-    html = template.render(**locals())
-
-    return html
+    return render_template('node.html', **locals())
