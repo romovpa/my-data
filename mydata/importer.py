@@ -1,7 +1,11 @@
 """
 CLI for importing data into the triplestore.
 
-Tries to run all parsers, prepares a graph, serializes it to 'cache/', then uploads everything to SPARQL endpoint.
+Scans the `exports` dir and your local data folders with all parsers, structures the data into a graph,
+serializes it to `cache` for uploading to a SPARQL triplestore like Apache Fuseki.
+
+Usage:
+$ python -m mydata.importer
 """
 
 from datetime import datetime
@@ -31,6 +35,7 @@ PARSERS = {
 
 def main():
     # TODO Split the output graph into smaller parts
+    # TODO Parallelize with multiprocessing?
 
     graph = Graph()
 
