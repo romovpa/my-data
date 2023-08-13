@@ -12,9 +12,9 @@ from rdflib.namespace import XSD, Namespace, RDF
 
 from mydata.utils import SQLiteConnection
 
-SCHEMA = Namespace('https://schema.org/')
-BROWSER = Namespace('https://mydata-schema.org/browser/')
-MYDATA = Namespace('mydata://')
+
+BROWSER_TYPE = Namespace('https://ownld.org/service/browser/')
+BROWSER_DATA = Namespace('mydata://db/service/browser/')
 
 
 def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
@@ -34,18 +34,18 @@ def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
             url = row['url']
             url_hash = hashlib.sha1(url.encode()).hexdigest()
 
-            visit_ref = MYDATA[f'browser/visit/{unixtime}/{url_hash}']
+            visit_ref = BROWSER_DATA[f'visit/{unixtime}/{url_hash}']
 
             # TODO add who is actor (who is using the browser)
-            graph.add((visit_ref, RDF.type, MYDATA['WebVisit']))
-            graph.add((visit_ref, MYDATA['url'], Literal(url, datatype=XSD['anyURI'])))
-            graph.add((visit_ref, MYDATA['time'], Literal(time, datatype=XSD['dateTime'])))
+            graph.add((visit_ref, RDF.type, BROWSER_TYPE['WebVisit']))
+            graph.add((visit_ref, BROWSER_TYPE['url'], Literal(url, datatype=XSD['anyURI'])))
+            graph.add((visit_ref, BROWSER_TYPE['time'], Literal(time, datatype=XSD['dateTime'])))
             if row['title'] is not None:
-                graph.add((visit_ref, MYDATA['title'], Literal(row['title'])))
+                graph.add((visit_ref, BROWSER_TYPE['title'], Literal(row['title'])))
             if browser is not None:
-                graph.add((visit_ref, MYDATA['browser'], Literal(browser)))
+                graph.add((visit_ref, BROWSER_TYPE['browser'], Literal(browser)))
             if has_duration and row['duration'] is not None:
-                graph.add((visit_ref, MYDATA['duration'], Literal(row['duration'], datatype=XSD['float'])))
+                graph.add((visit_ref, BROWSER_TYPE['duration'], Literal(row['duration'], datatype=XSD['float'])))
 
 
 def parse_chrome_history(graph, db_file):
@@ -85,8 +85,8 @@ def parse_safari_history(graph, db_file):
 def prepare_web_events():
     graph = Graph()
     graph.bind('rdf', RDF)
-    graph.bind('schema', SCHEMA)
     graph.bind('xsd', XSD)
+    graph.bind('own_browser', BROWSER_TYPE)
 
     # Scan all db files in the exports directory and in the Mac OS default locations
 
@@ -106,6 +106,20 @@ def prepare_web_events():
 
     # Using N-Triples, because Turtle is too slow (likely due to the large number of unique URIs)
     graph.serialize('cache/web_events.nt', format='nt', encoding='utf-8')
+
+
+def discover_and_parse(graph):
+    chrome_history_path = Path.home() / 'Library/Application Support/Google/Chrome/Default/History'
+    if chrome_history_path.exists():
+        parse_chrome_history(graph, Path.home() / 'Library/Application Support/Google/Chrome/Default/History')
+    for path in glob.glob('exports/**/Chrome_History*.db', recursive=True):
+        parse_chrome_history(graph, path)
+
+    safari_history_path = Path.home() / 'Library/Safari/History.db'
+    if safari_history_path.exists():
+        parse_safari_history(graph, Path.home() / 'Library/Safari/History.db')
+    for path in glob.glob('exports/**/Safari_History*.db', recursive=True):
+        parse_safari_history(graph, path)
 
 
 if __name__ == '__main__':

@@ -7,8 +7,6 @@ Information about knowldgeC.db:
 
 """
 
-import sqlite3
-
 import glob
 from datetime import datetime
 from pathlib import Path
@@ -18,9 +16,9 @@ from rdflib.namespace import XSD, Namespace, RDF
 
 from mydata.utils import SQLiteConnection
 
-SCHEMA = Namespace('https://schema.org/')
-APPLE = Namespace('https://mydata-schema.org/apple/')
-MYDATA = Namespace('mydata://')
+
+APPLE_TYPE = Namespace('https://ownld.org/service/apple/')
+APPLE_DATA = Namespace('mydata://db/service/apple/')
 
 
 def parse_date(date_str):
@@ -67,31 +65,40 @@ def parse_knowldegeC(graph, db_file):
         """)
 
         for row in cur:
-            event_ref = APPLE[f'apple/{row["type"].strip("/")}/{row["uuid"]}']
+            event_ref = APPLE_DATA[f'{row["uuid"]}']
+            event_type = row["type"].lstrip("/").split('/', 1)[0]
 
-            graph.add((event_ref, RDF.type, APPLE[f'event/{row["type"].lstrip("/")}']))
-            graph.add((event_ref, APPLE.uuid, Literal(row['uuid'], datatype=XSD.string)))
-            graph.add((event_ref, APPLE.bundleId, MYDATA[f"apple/bundle/{row['bundle_id']}"]))
-            graph.add((event_ref, APPLE.deviceId, MYDATA[f"apple/device/{row['device_id']}"]))
+            graph.add((event_ref, RDF.type, APPLE_TYPE[f'event/{event_type}']))
+            graph.add((event_ref, APPLE_TYPE.uuid, Literal(row['uuid'], datatype=XSD.string)))
+            graph.add((event_ref, APPLE_TYPE.bundleId, APPLE_DATA[f"bundle/{row['bundle_id']}"]))
+            graph.add((event_ref, APPLE_TYPE.deviceId, APPLE_DATA[f"device/{row['device_id']}"]))
 
             start_date = parse_date(row['start_time'])
             if start_date:
-                graph.add((event_ref, SCHEMA.startDate, Literal(start_date, datatype=XSD.dateTime)))
+                graph.add((event_ref, APPLE_TYPE.startDate, Literal(start_date, datatype=XSD.dateTime)))
 
             end_date = parse_date(row['end_time'])
             if end_date:
-                graph.add((event_ref, SCHEMA.endDate, Literal(end_date, datatype=XSD.dateTime)))
+                graph.add((event_ref, APPLE_TYPE.endDate, Literal(end_date, datatype=XSD.dateTime)))
 
             created_date = parse_date(row['created_time'])
             if created_date:
-                graph.add((event_ref, APPLE.createdTime, Literal(created_date, datatype=XSD.dateTime)))
+                graph.add((event_ref, APPLE_TYPE.createdTime, Literal(created_date, datatype=XSD.dateTime)))
+
+
+def discover_and_parse(graph):
+    default_knowledgeC_path = Path.home() / 'Library/Application Support/Knowledge/knowledgeC.db'
+    if default_knowledgeC_path.exists():
+        parse_knowldegeC(graph, default_knowledgeC_path)
+    for db_filename in glob.glob('exports/**/knowledgeC*.db', recursive=True):
+        parse_knowldegeC(graph, db_filename)
 
 
 def main():
     graph = Graph()
     graph.bind('rdf', RDF)
-    graph.bind('schema', SCHEMA)
     graph.bind('xsd', XSD)
+    graph.bind('own_apple', APPLE_TYPE)
 
     default_knowledgeC_path = Path.home() / 'Library/Application Support/Knowledge/knowledgeC.db'
     if default_knowledgeC_path.exists():

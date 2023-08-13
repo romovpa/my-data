@@ -18,9 +18,8 @@ from rdflib.namespace import XSD, Namespace, RDF
 from rdflib.term import _is_valid_uri
 
 
-SCHEMA = Namespace('https://schema.org/')
-GOOGLE = Namespace('https://mydata-schema.org/google/')
-MYDATA = Namespace('mydata://')
+GOOGLE_TYPE = Namespace('https://ownld.org/service/google/')
+GOOGLE_DATA = Namespace('mydata://db/service/google/')
 
 
 def process_activity(graph, record):
@@ -30,21 +29,21 @@ def process_activity(graph, record):
     activity_hash = hashlib.sha256(
         f'{time.strftime("%Y-%m-%dT%H:%M:%S%z")}/{record.get("header")}/{record.get("title")}/{record.get("titleUrl")}'.encode('utf-8')
     ).hexdigest()
-    activity_ref = MYDATA['google-activity/' + activity_hash]
+    activity_ref = GOOGLE_DATA[f'activity/{activity_hash}']
 
-    graph.add((activity_ref, RDF.type, GOOGLE.Activity))
-    graph.add((activity_ref, GOOGLE.time, Literal(time, datatype=XSD.dateTime)))
+    graph.add((activity_ref, RDF.type, GOOGLE_TYPE.Activity))
+    graph.add((activity_ref, GOOGLE_TYPE.time, Literal(time, datatype=XSD.dateTime)))
     if record.get('header') is not None:
-        graph.add((activity_ref, GOOGLE.header, Literal(record['header'])))
+        graph.add((activity_ref, GOOGLE_TYPE.header, Literal(record['header'])))
     if record.get('title') is not None:
-        graph.add((activity_ref, SCHEMA.name, Literal(record['title'])))
+        graph.add((activity_ref, GOOGLE_TYPE.name, Literal(record['title'])))
     if record.get('titleUrl') is not None:
         url = record['titleUrl'].replace(' ', '+')
         if _is_valid_uri(url):
-            graph.add((activity_ref, GOOGLE.url, URIRef(url)))
+            graph.add((activity_ref, GOOGLE_TYPE.url, URIRef(url)))
     if 'products' in record:
         for product in record['products']:
-            graph.add((activity_ref, GOOGLE.product, GOOGLE["product/" + product.replace(' ', '+')]))
+            graph.add((activity_ref, GOOGLE_TYPE.product, GOOGLE_TYPE["product/" + product.replace(' ', '+')]))
 
 
 def process_takeout_file(graph, zip_archive, file):
@@ -63,8 +62,8 @@ def process_takeout_file(graph, zip_archive, file):
 def prepare_google_activity():
     graph = Graph()
     graph.bind('rdf', RDF)
-    graph.bind('schema', SCHEMA)
     graph.bind('xsd', XSD)
+    graph.bind('own_google', GOOGLE_TYPE)
 
     for takeout_filename in glob.glob('exports/**/takeout-*.zip', recursive=True):
         takeout_zip = zipfile.ZipFile(takeout_filename)
@@ -196,6 +195,14 @@ def parse_html_activity(filename):
         return cells
 
     return []
+
+
+def discover_and_parse(graph):
+    for takeout_filename in glob.glob('exports/**/takeout-*.zip', recursive=True):
+        takeout_zip = zipfile.ZipFile(takeout_filename)
+        print(f'Processing {takeout_filename}')
+        for file in takeout_zip.filelist:
+            process_takeout_file(graph, takeout_zip, file)
 
 
 if __name__ == '__main__':

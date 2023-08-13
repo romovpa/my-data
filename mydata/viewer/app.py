@@ -19,7 +19,7 @@ from rdflib.plugins.stores.sparqlstore import SPARQLStore
 
 app = Flask(__name__)
 
-store = SPARQLStore('http://localhost:3030/ds/sparql')
+store = SPARQLStore('http://localhost:3030/mydata/sparql')
 graph = rdflib.ConjunctiveGraph(store)
 
 schema = Graph().parse('schema_standard.ttl')
@@ -82,7 +82,7 @@ def hello_world():
         ?subject rdf:type ?type .
     }
     GROUP BY ?type
-    ORDER BY DESC(?count)
+    ORDER BY ?type 
     ''')
 
     return jinja2.Template("""
