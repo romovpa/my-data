@@ -1,0 +1,45 @@
+site_name: My Data
+site_url: https://romovpa.github.io/mydata/
+site_description: Personal data discovery and analysis
+
+repo_url: https://github.com/romovpa/my-data
+
+nav:
+  - Home: index.md
+
+theme:
+  name: material
+  features:
+    - content.tooltips
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - navigation.tabs
+    - navigation.tracking
+    - navigation.instant
+    - navigation.indexes
+    - navigation.selections
+    - navigation.tabs
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+    #- navigation.footer
+    - header.autohide
+  icon:
+    logo: fontawesome/solid/vault
+
+plugins:
+  - glightbox
+  - git-authors
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+
