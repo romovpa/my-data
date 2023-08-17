@@ -8,3 +8,4 @@ lxml
 python-dateutil
 rdflib
 flask
+osxphotos
