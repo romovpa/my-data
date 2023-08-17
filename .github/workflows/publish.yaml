@@ -43,6 +43,7 @@ jobs:
             "mkdocs-rss-plugin>=1.2" \
             "mkdocs-redirects>=1.0" \
             "mkdocs-glightbox" \
+            "mkdocs-git-authors-plugin" \
             "pillow<10"
 
       - name: Install Insiders build
