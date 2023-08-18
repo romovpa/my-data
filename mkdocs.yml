@@ -3,6 +3,8 @@ site_url: https://romovpa.github.io/mydata/
 site_description: Personal data discovery and analysis
 
 repo_url: https://github.com/romovpa/my-data
+repo_name: romovpa/my-data
+edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
@@ -18,7 +20,7 @@ theme:
   features:
     - content.tooltips
     - content.action.edit
-    - content.action.view
+    #- content.action.view
     - content.code.annotate
     - content.code.copy
     #- navigation.tabs
@@ -36,10 +38,17 @@ theme:
     - header.autohide
   icon:
     logo: fontawesome/solid/vault
+    repo: fontawesome/brands/git-alt
 
 plugins:
   - glightbox
-  - git-authors
+  - git-committers:
+      repository: romovpa/my-data
+      branch: main
+  - git-revision-date-localized:
+      exclude:
+        - index.md
+      fallback_to_build_date: true
 
 markdown_extensions:
   - attr_list

@@ -1,4 +1,4 @@
-# Welcome to MkDocs
+# My Data
 
 This will be a set of tools to explore your digital footprint and claim your data from web services.
 
