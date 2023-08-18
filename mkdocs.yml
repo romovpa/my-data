@@ -12,8 +12,9 @@ nav:
   - Access Your Data: data-access.md
   - Linked Data Basics: linked-data.md
   - Getting Started: getting-started.md
+  - SPARQL Examples: sparql-examples.md
   - Contributing: contributing.md
-  - RDF Namespace Convention: namespace_convention.md
+  - RDF Namespace Convention: namespace-convention.md
 
 theme:
   name: material
