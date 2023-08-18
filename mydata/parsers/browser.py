@@ -6,7 +6,7 @@ from datetime import datetime
 import hashlib
 from pathlib import Path
 from sqlite3 import OperationalError
-
+from urllib.parse import quote
 from rdflib import Graph, Literal
 from rdflib.namespace import XSD, Namespace, RDF
 
@@ -19,6 +19,8 @@ BROWSER_DATA = Namespace('mydata://db/service/browser/')
 
 def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
     print(f'Parsing {db_file}')
+
+    profile = Path(db_file).parts[-2]
 
     with SQLiteConnection(db_file) as db:
         try:
@@ -46,6 +48,7 @@ def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
                 graph.add((visit_ref, BROWSER_TYPE['browser'], Literal(browser)))
             if has_duration and row['duration'] is not None:
                 graph.add((visit_ref, BROWSER_TYPE['duration'], Literal(row['duration'], datatype=XSD['float'])))
+            graph.add((visit_ref, BROWSER_TYPE['profile'], Literal(quote(profile))))
 
 
 def parse_chrome_history(graph, db_file):
@@ -83,16 +86,16 @@ def parse_safari_history(graph, db_file):
 
 
 def prepare_web_events():
+    # TODO add hardware device identifiers to know from which device it was collected
     graph = Graph()
     graph.bind('rdf', RDF)
     graph.bind('xsd', XSD)
     graph.bind('own_browser', BROWSER_TYPE)
 
-    # Scan all db files in the exports directory and in the Mac OS default locations
-
-    chrome_history_path = Path.home() / 'Library/Application Support/Google/Chrome/Default/History'
-    if chrome_history_path.exists():
-        parse_chrome_history(graph, Path.home() / 'Library/Application Support/Google/Chrome/Default/History')
+    # Scan all db files in the exports directory and in the macOS default locations
+    chrome_dir_path = Path.home() / 'Library/Application Support/Google/Chrome'
+    for path in glob.glob(str(chrome_dir_path / '*/History')):
+        parse_chrome_history(graph, path)
     for path in glob.glob('exports/**/Chrome_History*.db', recursive=True):
         parse_chrome_history(graph, path)
 
