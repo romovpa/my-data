@@ -21,6 +21,7 @@ def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
     print(f'Parsing {db_file}')
 
     profile = Path(db_file).parts[-2]
+    profile_ref = BROWSER_DATA[f"profile/{quote(profile)}"]
 
     with SQLiteConnection(db_file) as db:
         try:
@@ -48,7 +49,7 @@ def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
                 graph.add((visit_ref, BROWSER_TYPE['browser'], Literal(browser)))
             if has_duration and row['duration'] is not None:
                 graph.add((visit_ref, BROWSER_TYPE['duration'], Literal(row['duration'], datatype=XSD['float'])))
-            graph.add((visit_ref, BROWSER_TYPE['profile'], Literal(quote(profile))))
+            graph.add((visit_ref, BROWSER_TYPE['profile'], profile_ref))
 
 
 def parse_chrome_history(graph, db_file):
