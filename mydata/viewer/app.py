@@ -10,6 +10,7 @@ http://localhost:4999/
 
 from typing import Union
 import itertools
+from urllib.parse import unquote, quote
 
 import jinja2
 import rdflib
@@ -28,6 +29,8 @@ namespace_manager = graph.namespace_manager if graph is not None else None
 app.jinja_env.filters["is_uri"] = lambda obj: isinstance(obj, URIRef)
 app.jinja_env.filters["is_literal"] = lambda obj: isinstance(obj, Literal)
 app.jinja_env.filters["n3_notation"] = lambda obj: obj.n3(namespace_manager)
+app.jinja_env.filters["quote"] = quote
+app.jinja_env.filters["unquote"] = unquote
 
 
 def get_label(uri: rdflib.URIRef):
@@ -56,6 +59,7 @@ app.jinja_env.filters["description"] = get_description
 
 
 def query_all_predicates(graph: rdflib.Graph, uri: Union[str, rdflib.URIRef]):
+    print(uri, type(uri))
     return graph.query(f'''
         SELECT ?direction ?predicate ?node
         WHERE {{
