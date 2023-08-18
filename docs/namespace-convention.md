@@ -1,6 +1,8 @@
 Namespace Convention
 ====================
 
+See [Linked Data Patterns](https://patterns.dataincubator.org/book/) by Leigh Dodds and Ian Davis.
+
 Hash URIs are for ontology classes and properties (type definitions), e.g.: `https://ownld.org/types/events#Event`.
 Slack URIs are for instances (data records), e.g. `mydata://mydb/events/1234567890`.
 
