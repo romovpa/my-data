@@ -25,7 +25,7 @@ The idea of this effort is to make personal data accessible and make the process
 
 ## Usage
 
-### Prepare Data Exports
+### Prepare data exports
 
 Put your unzipped data exports in `exports` folder. 
 You are going to have something like this:
@@ -36,28 +36,35 @@ exports/
     imap_export.mbox
 ```
 
-What is supported:
-1. [Google Takeout](https://takeout.google.com/): activity logs and mail
-2. Email exports in [MBOX](https://en.wikipedia.org/wiki/Mbox) format
+### Install and run Apache Fuseki triplestore
 
-### Run The App
+Download Apache Fuseki release from the [Apache Jena Downloads](https://jena.apache.org/download/) page.
+
+Extract and run the server:
+```commandline
+./fuseki-server
+```
+
+The triplestore will be available at http://localhost:3030.
+
+Create a new dataset named 'mydata', it will be used to upload your data.
+
+### Convert data exports into linked data
 
 Install the python dependencies:
 ```commandline
 pip install -r requirements.txt
 ```
 
-Run the [streamlit](https://streamlit.io/) app:
+Run the importer:
 ```commandline
-streamlit run My_Data.py
+python -m my_data.importer
 ```
 
-Open the app in your browser (typically http://localhost:8501).
-
-### Run with Docker
-
-(I couldn't run on M1 due to memory issue)
+Run the graph viewer:
 ```commandline
-docker build -t my-data .
-docker run -p 8501:8501 -v `pwd`/cache:/app/cache -v `pwd`/exports:/app/exports my-data 
+flask --app mydata.viewer:app run -h localhost -p 4999
+```
+
+Visit the viewer in your browser: http://localhost:4999
 ```
