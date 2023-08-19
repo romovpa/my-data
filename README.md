@@ -67,4 +67,3 @@ flask --app mydata.viewer:app run -h localhost -p 4999
 ```
 
 Visit the viewer in your browser: http://localhost:4999
-```
