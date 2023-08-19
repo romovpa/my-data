@@ -3,11 +3,11 @@ Parser for Apple Photos
 """
 
 import sys
-from datetime import datetime
 import urllib.parse
+from datetime import datetime
 
 from rdflib import Graph, Literal
-from rdflib.namespace import XSD, Namespace, RDF
+from rdflib.namespace import RDF, XSD, Namespace
 
 try:
     import osxphotos
@@ -16,13 +16,13 @@ except ImportError:
     sys.exit(1)
 
 
-APPLE_TYPE = Namespace('https://ownld.org/service/apple/')
-APPLE_DATA = Namespace('mydata://db/service/apple/')
+APPLE_TYPE = Namespace("https://ownld.org/service/apple/")
+APPLE_DATA = Namespace("mydata://db/service/apple/")
 
 
 def parse_date(date_str):
     try:
-        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+        return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
         return None
 
@@ -31,7 +31,7 @@ def prepare_photos(graph):
     photosdb = osxphotos.PhotosDB()
 
     for photo in photosdb.photos():
-        photo_ref = APPLE_DATA[f'photos/photo/{photo.uuid}']
+        photo_ref = APPLE_DATA[f"photos/photo/{photo.uuid}"]
         graph.add((photo_ref, RDF.type, APPLE_TYPE.Photo))
         graph.add((photo_ref, APPLE_TYPE.uuid, Literal(photo.uuid)))
         graph.add((photo_ref, APPLE_TYPE.name, Literal(photo.original_filename)))
@@ -50,11 +50,11 @@ def prepare_photos(graph):
         graph.add((photo_ref, APPLE_TYPE.isScreenshot, Literal(photo.screenshot, datatype=XSD.boolean)))
         graph.add((photo_ref, APPLE_TYPE.isPortrait, Literal(photo.portrait, datatype=XSD.boolean)))
         for keyword in photo.keywords:
-            graph.add((photo_ref, APPLE_TYPE.keywords, APPLE_DATA[f'photos/keyword/{urllib.parse.quote(keyword)}']))
+            graph.add((photo_ref, APPLE_TYPE.keywords, APPLE_DATA[f"photos/keyword/{urllib.parse.quote(keyword)}"]))
         for album in photo.albums:
-            graph.add((photo_ref, APPLE_TYPE.album, APPLE_DATA[f'photos/album/{urllib.parse.quote(album)}']))
+            graph.add((photo_ref, APPLE_TYPE.album, APPLE_DATA[f"photos/album/{urllib.parse.quote(album)}"]))
         for person in photo.persons:
-            graph.add((photo_ref, APPLE_TYPE.person, APPLE_DATA[f'photos/person/{urllib.parse.quote(person)}']))
+            graph.add((photo_ref, APPLE_TYPE.person, APPLE_DATA[f"photos/person/{urllib.parse.quote(person)}"]))
 
 
 def discover_and_parse(graph):
@@ -63,16 +63,16 @@ def discover_and_parse(graph):
 
 def main():
     graph = Graph()
-    graph.bind('rdf', RDF)
-    graph.bind('xsd', XSD)
-    graph.bind('own_apple', APPLE_TYPE)
+    graph.bind("rdf", RDF)
+    graph.bind("xsd", XSD)
+    graph.bind("own_apple", APPLE_TYPE)
 
     prepare_photos(graph)
 
-    print(f'Triples: {len(graph)}')
+    print(f"Triples: {len(graph)}")
 
-    graph.serialize('cache/apple_photos.ttl', format='turtle')
+    graph.serialize("cache/apple_photos.ttl", format="turtle")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

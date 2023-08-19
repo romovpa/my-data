@@ -1,13 +1,13 @@
 import csv
+import itertools
 import shutil
 import sqlite3
 from tempfile import TemporaryDirectory
 
-from IPython.display import HTML
 import jinja2
-import itertools
 import rdflib
-from rdflib.term import URIRef, Literal
+from IPython.display import HTML
+from rdflib.term import Literal, URIRef
 
 
 class CSVWriter:
@@ -29,10 +29,7 @@ class CSVWriter:
 def rdf_table(records, header=None, limit=100, graph=None):
     """Make a displayable table from SPAQRL query results or list of triples."""
 
-    if (
-        isinstance(records, rdflib.query.Result)
-        and header is None
-    ):
+    if isinstance(records, rdflib.query.Result) and header is None:
         header = records.vars
     namespace_manager = graph.namespace_manager if graph is not None else None
 
