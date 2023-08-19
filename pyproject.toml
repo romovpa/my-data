@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "my-data"
+version = "0.0.1"
+author = "Peter Romov"
+author_email = "romovpa@gmail.com"
+description = "Personal data discovery and analysis"
+readme = "README.md"
+requires-python = ">=3.7"
+keywords = ["personal data"]
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+[tool.black]
+target-version = ["py310"]
+line-length = 120
+
+[tool.isort]
+py_version = 310
