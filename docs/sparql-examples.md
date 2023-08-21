@@ -2,6 +2,10 @@
 
 TODO Create a repository of example queries like in [Wikidata](https://query.wikidata.org/) (see "Examples" button).
 
+[SPARQL By Example](https://www.w3.org/2009/Talks/0615-qbe/)
+
+[SPARQL Tutorial (Apache Jena)](https://jena.apache.org/tutorials/sparql.html)
+
 ## List email attachments
 
 ```sparql
