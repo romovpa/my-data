@@ -41,9 +41,24 @@ You can read more about it here.
 
 ## Apple photos
 
-## Apple safari
+## Apple Safari
+
+On your MacOS device Safari browsing history is stored in `/Users/<username>/Library/Safari/History.db` file.
+If `History.db` is inaccessible for some reason, you can rename it and put it into exports directory like this `exports/Safari_History.db`.
+
+Run this command to parse it 
+`
+python mydata/parsers/browser.py
+`
+
+When parsing is completed `cache/web_events.nt` file will be created. 
 
 ## Google Chrome
+
+Same script that is used in [previous instruction](#apple-safari) is used for parsing Google Chrome browsing history. 
+If you have multiple profiles in Google Chrome, all of them will be parsed from corresponding paths
+`/Users/<username>/Library/Application Support/Google/Chrome/<Profile>/History`. If this folder is inaccessible 
+copy `History` files to `epxorts/` folder and rename them `Chrome_History*.db`
 
 ## Google Chrome password manager
 
