@@ -2,7 +2,7 @@
 Minimalistic RDF viewer
 
 Running:
-$ flask --app mydata.viewer:app run -h localhost -p 4999  --debug
+$ flask --app mydata.viewer:app run -h localhost -p 4999 --debug
 
 Then open
 http://localhost:4999/
@@ -51,69 +51,126 @@ app.jinja_env.filters["label"] = get_label
 app.jinja_env.filters["description"] = get_description
 
 
-def query_all_predicates(graph: rdflib.Graph, uri: Union[str, rdflib.URIRef]):
-    print(uri, type(uri))
-    return graph.query(
-        f"""
-        SELECT ?direction ?predicate ?node
-        WHERE {{
-            {{
-                BIND("forward" AS ?direction)
-                <{uri}> ?predicate ?node .
-            }}
-            UNION
-            {{
-                BIND("backward" AS ?direction)
-                ?node ?predicate <{uri}> .
-            }}
-        }}
+def query_all_predicates(graph: rdflib.Graph, uri: Union[str, rdflib.URIRef], predicate_limit=30):
+    predicate_query = jinja2.Template(
+        """
+    SELECT
+        ?direction
+        ?predicate
+        ?total
+        ?node
+
+    WHERE {
+        # Retrieve all predicates related to the node
+        {
+            BIND("forward" AS ?direction)
+            <{{uri}}> ?predicate ?node .
+        }
+        UNION
+        {
+            BIND("backward" AS ?direction)
+            ?node ?predicate <{{uri}}> .
+        }
+
+        # Determine the number of related nodes for each predicate
+        {
+            SELECT
+                ?direction
+                ?predicate
+                (COUNT(?node) AS ?total)
+            WHERE {
+                {
+                    BIND("forward" AS ?direction)
+                    <{{uri}}> ?predicate ?node .
+                }
+                UNION
+                {
+                    BIND("backward" AS ?direction)
+                    ?node ?predicate <{{uri}}> .
+                }
+            }
+            GROUP BY ?direction ?predicate
+        }
+
+        # Apply limiting for each predicate by random sampling
+        FILTER(RAND() <= ({{predicate_limit}} / ?total))
+    }
+
+    ORDER BY DESC(?direction) ?predicate
     """
+    )
+
+    predicates = graph.query(predicate_query.render(uri=uri, predicate_limit=predicate_limit))
+
+    predicate_types = []
+    grouped_predicates = itertools.groupby(predicates, lambda row: (row.direction, row.predicate, int(row.total)))
+    for (direction, predicate, total), group in grouped_predicates:
+        predicate_types.append(
+            {
+                "direction": direction,
+                "predicate": predicate,
+                "total": total,
+                "nodes": [node for _, _, _, node in group],
+            }
+        )
+
+    metainfo_query = jinja2.Template(
+        """
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+    SELECT ?uri ?label ?description
+    WHERE {
+        VALUES ?uri {
+            {% for predicate in predicate_types %}
+            <{{ predicate.predicate }}>
+            {% endfor %}
+        }
+
+        OPTIONAL { ?uri rdfs:label ?label . }
+        OPTIONAL { ?uri rdfs:comment ?description . }
+    }
+    """
+    )
+
+    metainfo = graph.query(metainfo_query.render(predicate_types=predicate_types))
+    predicate_label = {}
+    predicate_description = {}
+    for row in metainfo:
+        if row.label:
+            predicate_label[row.uri] = row.label
+        if row.description:
+            predicate_description[row.uri] = row.description
+    for predicate_type in predicate_types:
+        predicate_type["label"] = predicate_label.get(predicate_type["predicate"])
+        predicate_type["description"] = predicate_description.get(predicate_type["predicate"])
+
+    return list(
+        sorted(predicate_types, key=lambda x: (0 if x["direction"] == "forward" else 1, x.get("label"), x["predicate"]))
     )
 
 
 @app.route("/")
-def hello_world():
+def list_types():
     result = graph.query(
         """
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
-    SELECT ?type (COUNT(DISTINCT ?subject) AS ?count)
+    SELECT ?type (COUNT(?subject) AS ?count)
     WHERE {
         ?subject rdf:type ?type .
+        FILTER(!ISBLANK(?type))
     }
     GROUP BY ?type
     ORDER BY ?type
     """
     )
 
-    return jinja2.Template(
-        """
-
-    <h1>MyData Viewer</h1>
-
-    <table class="table table-hover table-sm table-light">
-        <thead>
-            <tr>
-                <th class="col-xs-3 ">Type</th>
-                <th class="col-xs-9 px-3">Count</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for type, count in result %}
-                <tr class="{{ loop.cycle('odd', 'even') }}">
-                    <td><a href="/resource/{{ type }}">{{ type }}</a></td>
-                    <td>{{ count }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    """
-    ).render(**locals())
+    result = sorted(result, key=lambda row: "" if str(row.type).startswith("https://ownld.org") else str(row.type))
+    return render_template("types.html", **locals())
 
 
 @app.route("/resource/<path:uri>")
 def resource(uri):
     predicates = query_all_predicates(graph, uri)
-    grouped_predicates = itertools.groupby(predicates, lambda row: (row.direction, row.predicate))
 
     return render_template("node.html", **locals())

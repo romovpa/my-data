@@ -1,31 +1,10 @@
-<!DOCTYPE html>
-<html>
+{% extends "base.html" %}
 
-<!-- header -->
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+{% block title %}
+	{{ uri }}
+{% endblock %}
 
-    <title>{{ uri }}</title>
-
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
-	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm" crossorigin="anonymous"></script>
-
-</head>
-<body about="{{uri}}">
-
-<!-- navbar -->
-<nav class="navbar navbar-expand-md navbar-light bg-light fixed-top align-items-center">
-    <div class="container-xl">
-	<a class="navbar-brand" href="/" title="My Data" style="color: #2c5078">
-	    <h4>My Data</h4>
-	</a>
-	</div>
-   </div>
-</nav>
-<div style="margin-bottom: 60px"></div>
-<!-- /navbar -->
-
+{% block content %}
 
 <!-- page-header -->
 <section>
@@ -33,7 +12,8 @@
 	<div class="row">
 	    <div class="col">
 		<h1 id="title" class="display-6">
-		    <a href="/resource/{{uri}}">{{uri|unquote}}</a>
+			<a href="{{uri}}" target="_blank"><i class="bi bi-box-arrow-up-right"></i></a>
+			<a href="/resource/{{uri}}">{{uri|unquote}}</a>
 		</h1>
 	    </div>
 	</div>
@@ -54,16 +34,24 @@
 			</tr>
 		    </thead>
 		    <tbody>
-				{% for (direction, predicate), group in grouped_predicates %}
+				{% for group in predicates %}
 		            <tr class="{{ loop.cycle('odd', 'even') }}">
 		                <td class="col-2">
-		                    {% if direction.value == "backward" %} is {% endif %}
-		                    <span title="{{ predicate|description }}"><a href="{{ predicate }}">{{ predicate|label }}</a></span>
-							{% if direction.value == "backward" %} of {% endif %}
+		                    {% if group.direction.value == "backward" %} is {% endif %}
+		                    <span title="{{ group.description }}">
+								<a href="/resource/{{ group.predicate|quote }}">
+									{% if group.label %}
+										{{ group.label }}
+									{% else %}
+										{{ group.predicate }}
+									{% endif %}
+								</a>
+							</span>
+							{% if group.direction.value == "backward" %} of {% endif %}
 		                </td>
 		                <td class="col-10 text-break">
 							<ul>
-							{% for _, _, node in group %}
+							{% for node in group.nodes %}
 								<li>
 								{% if node|is_uri %}
 								<a href="/resource/{{ node|quote }}">{{ node|unquote }}</a>
@@ -74,7 +62,12 @@
 								{% endif %}
 								</li>
 							{% endfor %}
+
+							{% if (group.total > 10) %}
+							<i>(total {{ group.total }})</i>
+							{% endif %}
 							</ul>
+
 		                </td>
 		            </tr>
 		        {% endfor %}
@@ -87,17 +80,4 @@
 </section>
 <!-- property-table -->
 
-<!-- footer -->
-<section>
-    <div class="container-xl">
-	<div class="text-center p-4 bg-light">
-	    <small class="text-muted">
-             Footer text
-	    </small>
-	</div>
-    </div>
-</section>
-<!-- #footer -->
-
-</body>
-</html>
+{% endblock %}
