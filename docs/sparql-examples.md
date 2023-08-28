@@ -68,3 +68,25 @@ WHERE {
 GROUP BY ?yearMonth
 ORDER BY DESC(?yearMonth)
 ```
+
+## Events 
+
+This requires reasoning to work.
+
+```sparql
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX base: <https://ownld.org/base#>
+PREFIX apple: <https://mydata-schema.org/apple/>
+PREFIX telegram: <https://ownld.org/service/telegram/>
+
+
+SELECT ?event ?time
+WHERE {
+  ?event rdf:type base:Event ; 
+         base:time ?time .
+  OPTIONAL { ?event telegram:text ?text . }
+  OPTIONAL { ?event apple:text ?text . }
+}
+ORDER BY DESC(?time)
+LIMIT 1000
+```

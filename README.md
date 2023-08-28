@@ -67,3 +67,77 @@ flask --app mydata.viewer:app run -h localhost -p 4999
 ```
 
 Visit the viewer in your browser: http://localhost:4999
+
+### Enabling reasoning in Fuseki
+
+[Reasoners](https://jena.apache.org/documentation/inference/) allow to infer triples based on ontology and rules. 
+For example, this will allow to create super classes for your data, e.g. `Event`.
+
+Reasoning should be enabled by configuring Fuseki service. Following [this guide](https://jena.apache.org/documentation/fuseki2/fuseki-configuration.html),
+modify the dataset configuration file `FUSEKI_ROOT/run/configuration/mydata.ttl` to include the reasoner:
+
+```turtle
+@prefix :       <http://base/#> .
+@prefix fuseki: <http://jena.apache.org/fuseki#> .
+@prefix ja:     <http://jena.hpl.hp.com/2005/11/Assembler#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix tdb2:   <http://jena.apache.org/2016/tdb#> .
+
+:service_tdb_all a fuseki:Service;
+    rdfs:label "mydata service";
+    fuseki:name "mydata";
+
+    # graphs
+    fuseki:dataset [
+        a ja:RDFDataset;
+        ja:defaultGraph [
+            a ja:InfModel;
+            ja:baseModel [
+                a tdb2:GraphTDB2;
+                tdb2:location  "FUSEKI_ROOT/run/databases/mydata"
+            ];
+            ja:reasoner [
+                ja:reasonerURL <http://jena.hpl.hp.com/2003/RDFSExptRuleReasoner>
+            ]
+        ]
+    ] ;
+
+    # endpoints
+    fuseki:endpoint [
+        fuseki:operation fuseki:gsp-rw
+    ];
+    fuseki:endpoint [
+        fuseki:name "query";
+        fuseki:operation fuseki:query
+    ];
+    fuseki:endpoint [
+        fuseki:operation fuseki:query
+    ];
+    fuseki:endpoint [
+        fuseki:name "update";
+        fuseki:operation fuseki:update
+    ];
+    fuseki:endpoint [
+        fuseki:name "sparql";
+        fuseki:operation fuseki:query
+    ];
+    fuseki:endpoint [
+        fuseki:name "get";
+        fuseki:operation fuseki:gsp-r
+    ];
+    fuseki:endpoint [
+        fuseki:name "data";
+        fuseki:operation fuseki:gsp-rw
+    ];
+    fuseki:endpoint [
+        fuseki:operation fuseki:update
+    ].
+```
+
+Add `event_spec.ttl` to the dataset:
+```commandline
+fuseki/bin/s-post http://localhost:3030/mydata/data default event_spec.ttl
+```
+
+Now the types will be inferred automatically when making SPARQL queries.
