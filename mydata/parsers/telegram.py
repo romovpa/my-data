@@ -28,7 +28,7 @@ def parse_telegram(graph, dump_dir):
     with open(dump_dir / "result.json") as fin:
         results = json.load(fin)
 
-    for chat in tqdm(results["chats"]["list"]):
+    for chat in tqdm(results["chats"]["list"], position=0, desc="Chats"):
         chat_id = chat["id"]
         chat_ref = TG_DATA[f"chat/{chat_id}"]
 
@@ -41,7 +41,7 @@ def parse_telegram(graph, dump_dir):
         else:
             print(json.dumps(chat, indent=2))
 
-        for message in chat["messages"]:
+        for message in tqdm(chat["messages"], position=1, leave=False, desc="Messages"):
             message_id = message["id"]
             message_ref = TG_DATA[f"chat/{chat_id}/message/{message_id}"]
 
@@ -74,15 +74,15 @@ def parse_telegram(graph, dump_dir):
             graph.add((sender_ref, TG_TYPE.name, Literal(message["from"])))
 
 
-def main(dump_dir, graph_path):
+def main():
     graph = Graph()
     graph.bind("rdf", RDF)
     graph.bind("xsd", XSD)
     graph.bind("own_tg", TG_TYPE)
 
-    parse_telegram(graph, dump_dir)
+    discover_and_parse(graph)
 
-    graph.serialize(graph_path, format="turtle")
+    graph.serialize("cache/telegram.nt", format="nt", encoding="utf-8")
 
 
 def discover_and_parse(graph):
@@ -92,11 +92,4 @@ def discover_and_parse(graph):
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dump-dir", type=Path, required=True)
-    parser.add_argument("--graph", type=Path, required=True)
-    args = parser.parse_args()
-
-    main(args.dump_dir, args.graph)
+    main()

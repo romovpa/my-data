@@ -104,4 +104,58 @@ When successful `cache/mbox.nt` file will be generated.
 
 ## Google activity
 
+Same steps as in [Gmail instruction](#gmail) but in step 3 select "My activity".
+
+![google-takeout-my-activity-select](./imgs/google-takeout-my-activity-select.png)
+
+Select Json format for Activity records export options like this: 
+
+![google-takeout-my-activity-select-options](./imgs/google-takeout-my-activity-select-options.png)
+
+When exporting, it's better to select zip file format.
+
+When finished exporting and downloading `takeout-<date>.zip` file, put it in an `exports/` folder without extracting.
+
+Run the parsing module:
+
+```cmdline
+python -m mydata.parsers.google_activity
+```
+
+When successful file `cache/google_takeout.nt` will be created.
+
 ## Telegram
+
+In Telegram official desktop client select Settings > Advanced > Export Telegram data . 
+
+![](./imgs/telegram-select-settings.png)
+
+![](./imgs/telegram-settings-select-advanced.png)
+
+![](./imgs/telegram-select-export-telegram-data.png)
+
+To make export more complete select private messages, private groups, and public groups. 
+
+![](./imgs/telegram-export-data-select-groups.png)
+
+Processing scripts do not work with images at the moment, so that media can be excluded from export.
+
+![](./imgs/telegram-export-data-deselect-media.png)
+
+Select export in Json format.
+
+![](./imgs/telegram-export-data-select-json.png)
+
+Wait for the export to finish, it can take a while if you have a lot of messages in various chats.
+
+![](./imgs/telegram-data-export-progress.png)
+
+After export is finished, put the folder in `exports/telegram` folder.
+
+Run the parsing module (Warning: might use a lot of memory):
+
+```cmdline
+python -m mydata.parsers.telegram
+```
+
+When completed will create a `cache/telegram.nt` file.
