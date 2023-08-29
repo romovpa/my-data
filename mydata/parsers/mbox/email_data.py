@@ -1,6 +1,7 @@
 import email
 import email.policy
 import email.utils
+import os
 import re
 import time
 from email.header import decode_header, make_header
@@ -248,3 +249,60 @@ def get_email_domain(string):
     if not email:
         email = list(filter(lambda y: "@" in y, string.split()))
     return email[0].lower() if email else None
+
+
+class MboxChunk:
+    """
+    Chunk of mbox file. Used to iterate over mbox file by chunks.
+    """
+
+    def __init__(self, filename, begin=0, end=None):
+        self.filename = filename
+        self.file_obj = open(filename, "rb")
+        self.begin = begin
+        self.end = end
+        self.positions = []
+        self.init_positions()
+
+    def __del__(self):
+        self.file_obj.close()
+
+    def init_positions(self):
+        self.positions = []
+        self.file_obj.seek(self.begin)
+        while True:
+            line = self.file_obj.readline()
+            if line.startswith(b"From ") or not line:
+                start_pos = self.file_obj.tell() - len(line)
+                self.positions.append(start_pos)
+                if (self.end is not None and start_pos >= self.end) or not line:
+                    break
+
+    def __len__(self):
+        return len(self.positions) - 1
+
+    def __getitem__(self, item):
+        if item < 0 or item >= len(self):
+            raise IndexError("index out of range")
+        start_pos, end_pos = self.positions[item], self.positions[item + 1]
+        self.file_obj.seek(start_pos)
+        msg_data = self.file_obj.read(end_pos - start_pos)
+        return email.message_from_bytes(msg_data)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+
+def mbox_chunks(filename, chunk_size=100 * 1024 * 1024):
+    """
+    Iterate over mbox file by chunks.
+    """
+
+    with open(filename, "rb") as file_obj:
+        file_obj.seek(0, os.SEEK_END)
+        file_size = file_obj.tell()
+
+    for begin in range(0, file_size, chunk_size):
+        end = min(begin + chunk_size, file_size)
+        yield MboxChunk(filename, begin, end)

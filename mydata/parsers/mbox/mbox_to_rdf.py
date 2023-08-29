@@ -1,8 +1,16 @@
+import datetime
 import hashlib
+import json
 import mailbox
+import multiprocessing
+import os
+import shutil
 import traceback
 import warnings
+import zipfile
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from zipfile import ZipFile
 
 from bs4 import BeautifulSoup
 from rdflib import Graph, Literal, URIRef
@@ -10,7 +18,7 @@ from rdflib.namespace import RDF, XSD, Namespace
 from rdflib.term import _is_valid_uri
 from tqdm import tqdm
 
-from mydata.parsers.mbox.email_data import Message
+from mydata.parsers.mbox.email_data import MboxChunk, Message, mbox_chunks
 
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
 
@@ -43,9 +51,7 @@ def get_attachment_id(attachment):
     return hashlib.sha1((content_hash + "$" + filename).encode()).hexdigest()
 
 
-def message_to_rdf(mbox_msg):
-    msg = Message(mbox_msg)
-
+def message_to_rdf(msg):
     # Extracting links and text from the message contents
     text = None
     if msg.content_plain is not None:
@@ -129,27 +135,135 @@ def message_to_rdf(mbox_msg):
 
 
 def parse_mbox(graph, exports_dir="exports", cache_dir="cache"):
-    mbox_files = list(Path(exports_dir).glob("**/*.mbox"))
-    for mbox_file_idx, mbox_file in enumerate(mbox_files):
-        mbox = mailbox.mbox(mbox_file)
+    parsed_ids = set()
+    exceptions = []
+
+    def save_introspection():
+        with open(cache_dir + "/mbox_introspection.json", "w") as fout:
+            json.dump(
+                {
+                    "parsed_ids": list(parsed_ids),
+                    "exceptions": exceptions,
+                },
+                fout,
+            )
+
+    def process_mbox_file(filename, file_obj):
+        print(filename)
+        mbox = mailbox.mbox(file_obj)
 
         mbox_size = len(mbox)
 
-        desc = f"[{mbox_file_idx + 1}/{len(mbox_files)}] {mbox_file.relative_to(exports_dir)}"
+        desc = f"{filename}"
         for msg_index, mbox_msg in tqdm(enumerate(mbox), total=mbox_size, desc=desc):
             try:
-                msg_triples = message_to_rdf(mbox_msg)
+                msg = Message(mbox_msg)
+
+                if msg.message_id is None or msg.message_id in parsed_ids:
+                    continue
+
+                msg_triples = message_to_rdf(msg)
                 for triple in msg_triples:
                     graph.add(triple)
+                parsed_ids.add(msg.message_id)
+
             except KeyboardInterrupt:
-                # sys.exit()
-                print("Serializing graph...")
-                graph.serialize(Path(cache_dir) / "mbox.ttl", format="turtle")
+                save_introspection()
+
             except Exception as e:
-                print(f'Error parsing message {mbox_msg["message_id"]}: {e}')
-                # Print full stack trace
-                traceback.print_exc()
+                exceptions.append(
+                    {
+                        "mbox_file": filename,
+                        "msg_index": msg_index,
+                        "exception": str(e),
+                        "traceback": traceback.format_exc(),
+                    }
+                )
+
+    zip_files = list(Path(exports_dir).glob("**/*.zip"))
+    for zip_file_idx, zip_file in enumerate(zip_files):
+        print(zip_file)
+        zip = ZipFile(zip_file)
+        mbox_files = [f for f in zip.namelist() if f.lower().endswith(".mbox")]
+        for mbox_file_idx, mbox_file in enumerate(mbox_files):
+            with TemporaryDirectory() as tmpdir:
+                try:
+                    zip.extract(mbox_file, tmpdir)
+                except zipfile.BadZipFile:
+                    continue
+
+                process_mbox_file(f"{zip_file}:{mbox_file}", Path(tmpdir) / mbox_file)
+
+                graph.serialize(Path(cache_dir) / "mbox.nt", format="nt", encoding="utf-8")
+
+                shutil.rmtree(tmpdir)
+
+    mbox_files = Path(exports_dir).glob("**/*.mbox")
+    for mbox_file_idx, mbox_file in enumerate(mbox_files):
+        process_mbox_file(mbox_file, mbox_file)
+
+    save_introspection()
+
+
+def process_mbox_chunk(filename, begin, end, output_file):
+    graph = Graph()
+    graph.bind("rdf", RDF)
+    graph.bind("xsd", XSD)
+    graph.bind("own_mbox", MBOX_TYPE)
+
+    mbox_chunk = MboxChunk(filename, begin, end)
+    for i, mbox_msg in enumerate(mbox_chunk):
+        try:
+            msg = Message(mbox_msg)
+
+            if msg.message_id is None:
                 continue
+
+            msg_triples = message_to_rdf(msg)
+            for triple in msg_triples:
+                graph.add(triple)
+
+        except Exception:
+            pass
+
+    graph.serialize(output_file, format="nt", encoding="utf-8")
+
+
+def parse_mbox_parallel(exports_dir="exports", cache_dir="cache", chunk_size=100 * 1024 * 1024):
+    pool = multiprocessing.Pool(16)
+
+    output_dir = Path(cache_dir) / f"mbox_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(output_dir)
+
+    def process_mbox_file(filename, desc):
+        print(filename)
+        for chunk in mbox_chunks(filename, chunk_size):
+            output_file = output_dir / f"{abs(hash(desc))}_{chunk.begin}_{chunk.end}.nt"
+            pool.apply_async(process_mbox_chunk, args=(chunk.filename, chunk.begin, chunk.end, output_file))
+
+    mbox_files = Path(exports_dir).glob("**/*.mbox")
+    for mbox_file_idx, mbox_file in enumerate(mbox_files):
+        process_mbox_file(mbox_file, mbox_file)
+
+    zip_files = list(Path(exports_dir).glob("**/*.zip"))
+    for zip_file_idx, zip_file in enumerate(zip_files):
+        print(zip_file)
+        zip = ZipFile(zip_file)
+        mbox_files = [f for f in zip.namelist() if f.lower().endswith(".mbox")]
+        for mbox_file_idx, mbox_file in enumerate(mbox_files):
+            with TemporaryDirectory() as tmpdir:
+                try:
+                    zip.extract(mbox_file, tmpdir)
+                except zipfile.BadZipFile:
+                    continue
+
+                process_mbox_file(Path(tmpdir) / mbox_file, f"{zip_file}:{mbox_file}")
+
+                shutil.rmtree(tmpdir)
+
+    pool.join()
 
 
 def discover_and_parse(graph):
@@ -157,14 +271,16 @@ def discover_and_parse(graph):
 
 
 def main(exports_dir="exports", cache_dir="cache"):
-    graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_mbox", MBOX_TYPE)
+    # graph = Graph()
+    # graph.bind("rdf", RDF)
+    # graph.bind("xsd", XSD)
+    # graph.bind("own_mbox", MBOX_TYPE)
+    #
+    # parse_mbox(graph, exports_dir=exports_dir, cache_dir=cache_dir)
+    #
+    # graph.serialize(Path(cache_dir) / "mbox.nt", format="nt", encoding="utf-8")
 
-    parse_mbox(graph, exports_dir=exports_dir, cache_dir=cache_dir)
-
-    graph.serialize(Path(cache_dir) / "mbox.nt", format="nt", encoding="utf-8")
+    parse_mbox_parallel()
 
 
 if __name__ == "__main__":
