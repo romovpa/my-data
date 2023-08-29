@@ -22,13 +22,13 @@ This command needs to be run locally on Apple device or `knowledgeC.db` file sho
 
 To export data from this database use following command from the repo root directory:
 
-`
-python mydata/parsers/apple_knowledge.py
-`
+```cmdline
+python -m mydata.parsers.apple_knowledge
+```
 
 If you encounter an error with reading the `knowledgeC.db` file from Terminal, you can try [giving it full disk access](https://iboysoft.com/howto/operation-not-permitted-mac-terminal.html).  
 
-![full-disk-access](./imgs/enable-full-disk-access-terminal.webp)
+![full-disk-access](./imgs/enable-full-disk-access-terminal.png)
 
 When successful, you will see `cache/apple_knowledgeC.ttl` file created.
 
@@ -47,9 +47,9 @@ On your MacOS device Safari browsing history is stored in `/Users/<username>/Lib
 If `History.db` is inaccessible for some reason, you can rename it and put it into exports directory like this `exports/Safari_History.db`.
 
 Run this command to parse it 
-`
-python mydata/parsers/browser.py
-`
+```cmdline
+python -m mydata.parsers.browser
+```
 
 When parsing is completed `cache/web_events.nt` file will be created. 
 
@@ -94,9 +94,9 @@ Decompress downloaded `takeout-<date>.zip` or `takeout-<date>.tgz` file.
 Find `All mail Including Spam and Trash.mbox` folder in uncompressed files and move it to `exports/` directory. 
 
 Run command from repository root directory: 
-`
-python mydata/parsers/mbox/mbox_to_rdf.py
-`
+```cmdline
+python -m mydata.parsers.mbox.mbox_to_rdf
+```
 
 It might take a while and during the processing there might be error messages but the errors will not stop the processing.
 When successful `cache/mbox.nt` file will be generated.
