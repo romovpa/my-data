@@ -2,42 +2,42 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://romovpa.github.io/mydata/</loc>
-         <lastmod>2023-08-28</lastmod>
+         <lastmod>2023-08-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://romovpa.github.io/mydata/contributing/</loc>
-         <lastmod>2023-08-28</lastmod>
+         <lastmod>2023-08-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://romovpa.github.io/mydata/data-access/</loc>
-         <lastmod>2023-08-28</lastmod>
+         <lastmod>2023-08-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://romovpa.github.io/mydata/data-ownership/</loc>
-         <lastmod>2023-08-28</lastmod>
+         <lastmod>2023-08-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://romovpa.github.io/mydata/getting-started/</loc>
-         <lastmod>2023-08-28</lastmod>
+         <lastmod>2023-08-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://romovpa.github.io/mydata/linked-data/</loc>
-         <lastmod>2023-08-28</lastmod>
+         <lastmod>2023-08-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://romovpa.github.io/mydata/namespace-convention/</loc>
-         <lastmod>2023-08-28</lastmod>
+         <lastmod>2023-08-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://romovpa.github.io/mydata/sparql-examples/</loc>
-         <lastmod>2023-08-28</lastmod>
+         <lastmod>2023-08-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
 </urlset>
