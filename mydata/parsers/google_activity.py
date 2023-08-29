@@ -47,7 +47,7 @@ def process_activity(graph, record):
 
 
 def process_takeout_file(graph, zip_archive, file):
-    if file.filename.endswith("MyActivity.json"):
+    if file.filename.endswith("MyActivity.json") or file.filename.endswith("My Activity.json"):
         print(f"    parsing {file.filename}")
         records = json.load(zip_archive.open(file))
         for record in records:
