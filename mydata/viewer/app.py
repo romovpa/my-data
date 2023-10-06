@@ -23,7 +23,7 @@ app = Flask(__name__)
 store = SPARQLStore("http://localhost:3030/mydata/sparql")
 graph = rdflib.ConjunctiveGraph(store)
 
-schema = Graph().parse("schema_standard.ttl")
+schema = Graph().parse("knowledge/schema_standard.ttl")
 
 namespace_manager = graph.namespace_manager if graph is not None else None
 app.jinja_env.filters["is_uri"] = lambda obj: isinstance(obj, URIRef)
