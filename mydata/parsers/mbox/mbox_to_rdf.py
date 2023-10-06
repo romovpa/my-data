@@ -5,6 +5,7 @@ import mailbox
 import multiprocessing
 import os
 import shutil
+import tempfile
 import traceback
 import warnings
 import zipfile
@@ -112,26 +113,49 @@ def message_to_rdf(msg):
 
     # Attachments
     for attachment in msg.attachments:
-        attachment_id = get_attachment_id(attachment)
-        attachment_ref = message_ref + f"/attachment/{attachment_id}"
+        try:
+            attachment_id = get_attachment_id(attachment)
+            attachment_ref = message_ref + f"/attachment/{attachment_id}"
 
-        triples.append((message_ref, MBOX_TYPE.attachment, attachment_ref))
-        triples.append((attachment_ref, RDF.type, MBOX_TYPE.Attachment))
-        triples.append((attachment_ref, MBOX_TYPE.name, Literal(attachment.get_filename())))
-        triples.append(
-            (
-                attachment_ref,
-                MBOX_TYPE.contentSize,
-                Literal(len(attachment.get_content()), datatype=XSD.nonNegativeInteger),
+            triples.append((message_ref, MBOX_TYPE.attachment, attachment_ref))
+            triples.append((attachment_ref, RDF.type, MBOX_TYPE.Attachment))
+            triples.append((attachment_ref, MBOX_TYPE.name, Literal(attachment.get_filename())))
+            triples.append(
+                (
+                    attachment_ref,
+                    MBOX_TYPE.contentSize,
+                    Literal(len(attachment.get_content()), datatype=XSD.nonNegativeInteger),
+                )
             )
-        )
-        triples.append((attachment_ref, MBOX_TYPE.encodingFormat, Literal(attachment.get_content_type())))
+            triples.append((attachment_ref, MBOX_TYPE.encodingFormat, Literal(attachment.get_content_type())))
+        except:
+            pass
 
     # Additional info
     if msg["List-Id"]:
         triples.append((message_ref, MBOX_TYPE.listId, Literal(msg["List-Id"])))
 
     return triples
+
+
+def parse_mbox_to_graph(graph, messages, verbose=False, desc=None):
+    if verbose:
+        messages = tqdm(messages, desc=desc)
+
+    for mbox_msg in messages:
+        try:
+            msg = Message(mbox_msg)
+
+            if msg.message_id is None:
+                continue
+
+            msg_triples = message_to_rdf(msg)
+            for triple in msg_triples:
+                graph.add(triple)
+
+        except Exception as e:
+            if verbose:
+                traceback.print_exc()
 
 
 def parse_mbox(graph, exports_dir="exports", cache_dir="cache"):
@@ -271,16 +295,17 @@ def discover_and_parse(graph):
 
 
 def main(exports_dir="exports", cache_dir="cache"):
-    # graph = Graph()
-    # graph.bind("rdf", RDF)
-    # graph.bind("xsd", XSD)
-    # graph.bind("own_mbox", MBOX_TYPE)
-    #
-    # parse_mbox(graph, exports_dir=exports_dir, cache_dir=cache_dir)
-    #
-    # graph.serialize(Path(cache_dir) / "mbox.nt", format="nt", encoding="utf-8")
+    graph = Graph()
+    graph.bind("rdf", RDF)
+    graph.bind("xsd", XSD)
+    graph.bind("own_mbox", MBOX_TYPE)
 
-    parse_mbox_parallel()
+    messages = MboxChunk('exports/mbox.mbox')
+    parse_mbox_to_graph(graph, messages, verbose=True)
+
+    graph.serialize(Path(cache_dir) / "mbox.nt", format="nt", encoding="utf-8")
+
+    # parse_mbox_parallel()
 
 
 if __name__ == "__main__":
