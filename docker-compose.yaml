@@ -1,0 +1,32 @@
+version: '3.4'
+
+services:
+#  parsers:
+#    build:
+#      context: backend
+
+  fuseki:
+    # https://hub.docker.com/r/stain/jena-fuseki
+    # TODO: add loading from "/staging" path in container
+    image: stain/jena-fuseki
+    environment:
+      FUSEKI_DATASET_1: "mydata"
+      ADMIN_PASSWORD: "admin"
+    ports:
+      - "3030:3030"
+    volumes:
+      - fuseki-data:/fuseki
+      - ./cache:/staging
+
+  viewer:
+    depends_on:
+      - fuseki
+    ports:
+      - "4999:4999"
+    environment:
+      FUSEKI_HOSTNAME: "fuseki"
+    build:
+      context: .
+
+volumes:
+  fuseki-data:

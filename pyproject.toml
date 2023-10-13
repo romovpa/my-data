@@ -9,7 +9,7 @@ author = "Peter Romov"
 author_email = "romovpa@gmail.com"
 description = "Personal data discovery and analysis"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 keywords = ["personal data"]
 license = "MIT"
 classifiers = [
