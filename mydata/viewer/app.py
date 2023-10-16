@@ -8,6 +8,7 @@ Then open
 http://localhost:4999/
 """
 
+import os
 import itertools
 from typing import Union
 from urllib.parse import quote, unquote
@@ -20,7 +21,8 @@ from rdflib.plugins.stores.sparqlstore import SPARQLStore
 
 app = Flask(__name__)
 
-store = SPARQLStore("http://localhost:3030/mydata/sparql")
+FUSEKI_HOSTNAME = os.environ.get('FUSEKI_HOSTNAME', 'localhost')
+store = SPARQLStore(f"http://{FUSEKI_HOSTNAME}:3030/mydata/sparql")
 graph = rdflib.ConjunctiveGraph(store)
 
 schema = Graph().parse("schema_standard.ttl")
