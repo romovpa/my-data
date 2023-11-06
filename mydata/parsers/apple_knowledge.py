@@ -8,26 +8,28 @@ Information about knowldgeC.db:
 """
 
 import glob
-from datetime import datetime
 from pathlib import Path
 
-from rdflib import Graph, Literal
-from rdflib.namespace import RDF, XSD, Namespace
+from rdflib import Graph
+from rdflib.namespace import Namespace
 
-from mydata.utils import SQLiteConnection
+from mydata.utils import SQLiteConnection, parse_date
 
 APPLE_TYPE = Namespace("https://ownld.org/service/apple/")
 APPLE_DATA = Namespace("mydata://db/service/apple/")
 
 
-def parse_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return None
+context_jsonld = {
+    "@vocab": APPLE_TYPE,
+    "bundle": {"@type": "@id"},
+    "device": {"@type": "@id"},
+    "startDate": {"@type": "xsd:dateTime"},
+    "endDate": {"@type": "xsd:dateTime"},
+    "createdTime": {"@type": "xsd:dateTime"},
+}
 
 
-def parse_knowldegeC(graph, db_file):
+def parse_knowldegeC(db_file):
     with SQLiteConnection(db_file) as db:
         cur = db.sql(
             """
@@ -66,53 +68,52 @@ def parse_knowldegeC(graph, db_file):
         )
 
         for row in cur:
-            event_ref = APPLE_DATA[f'{row["uuid"]}']
             event_type = row["type"].lstrip("/").split("/", 1)[0]
 
-            graph.add((event_ref, RDF.type, APPLE_TYPE[f"event/{event_type}"]))
-            graph.add((event_ref, APPLE_TYPE.uuid, Literal(row["uuid"], datatype=XSD.string)))
-            graph.add((event_ref, APPLE_TYPE.bundleId, APPLE_DATA[f"bundle/{row['bundle_id']}"]))
-            graph.add((event_ref, APPLE_TYPE.deviceId, APPLE_DATA[f"device/{row['device_id']}"]))
+            record = {
+                "@id": APPLE_DATA[f'{row["uuid"]}'],
+                "@type": APPLE_TYPE[f"event/{event_type}"],
+                #
+                "uuid": row["uuid"],
+                "startDate": parse_date(row["start_time"], "%Y-%m-%d %H:%M:%S"),
+                "endDate": parse_date(row["end_time"], "%Y-%m-%d %H:%M:%S"),
+                "createdTime": parse_date(row["created_time"], "%Y-%m-%d %H:%M:%S"),
+                #
+                "bundle": {
+                    "@id": APPLE_DATA[f"bundle/{row['bundle_id']}"],
+                    "@type": APPLE_TYPE["Bundle"],
+                }
+                if row["bundle_id"] is not None
+                else None,
+                "device": {
+                    "@id": APPLE_DATA[f"device/{row['device_id']}"],
+                    "@type": APPLE_TYPE["Device"],
+                }
+                if row["device_id"] is not None
+                else None,
+            }
 
-            start_date = parse_date(row["start_time"])
-            if start_date:
-                graph.add((event_ref, APPLE_TYPE.startDate, Literal(start_date, datatype=XSD.dateTime)))
-
-            end_date = parse_date(row["end_time"])
-            if end_date:
-                graph.add((event_ref, APPLE_TYPE.endDate, Literal(end_date, datatype=XSD.dateTime)))
-
-            created_date = parse_date(row["created_time"])
-            if created_date:
-                graph.add((event_ref, APPLE_TYPE.createdTime, Literal(created_date, datatype=XSD.dateTime)))
+            yield record
 
 
 def discover_and_parse(graph):
     default_knowledgeC_path = Path.home() / "Library/Application Support/Knowledge/knowledgeC.db"
     if default_knowledgeC_path.exists():
-        parse_knowldegeC(graph, default_knowledgeC_path)
+        print(f"Parsing {default_knowledgeC_path}")
+        for record in parse_knowldegeC(default_knowledgeC_path):
+            graph.parse(data=record, format="json-ld", context=context_jsonld)
+
     for db_filename in glob.glob("exports/**/knowledgeC*.db", recursive=True):
-        parse_knowldegeC(graph, db_filename)
+        print(f"Parsing {db_filename}")
+        for record in parse_knowldegeC(db_filename):
+            graph.parse(data=record, format="json-ld", context=context_jsonld)
 
 
 def main():
     graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_apple", APPLE_TYPE)
-
-    default_knowledgeC_path = Path.home() / "Library/Application Support/Knowledge/knowledgeC.db"
-    if default_knowledgeC_path.exists():
-        print(f"Parsing {default_knowledgeC_path}")
-        parse_knowldegeC(graph, default_knowledgeC_path)
-
-    for db_filename in glob.glob("exports/**/knowledgeC*.db", recursive=True):
-        print(f"Parsing {db_filename}")
-        parse_knowldegeC(graph, db_filename)
-
+    discover_and_parse(graph)
     print(f"Triples: {len(graph)}")
-
-    graph.serialize("cache/apple_knowledgeC.ttl", format="turtle")
+    graph.serialize("cache/apple_knowledgeC_jsonld.ttl", format="turtle")
 
 
 if __name__ == "__main__":

@@ -96,18 +96,15 @@ def photos_to_jsonld():
 
 
 def discover_and_parse(graph):
-    photos_to_jsonld(graph)
-
-
-def main():
-    graph = Graph()
-
     photos = photos_to_jsonld()
     for photo in photos:
         graph.parse(data=photo, format="json-ld", context=context_jsonld)
 
-    print(f"Triples: {len(graph)}")
 
+def main():
+    graph = Graph()
+    discover_and_parse(graph)
+    print(f"Triples: {len(graph)}")
     graph.serialize("cache/apple_photos_jsonld.ttl", format="turtle")
 
 

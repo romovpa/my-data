@@ -2,6 +2,7 @@ import csv
 import itertools
 import shutil
 import sqlite3
+from datetime import datetime
 from tempfile import TemporaryDirectory
 
 import jinja2
@@ -109,3 +110,10 @@ class SQLiteConnection:
         cursor = self.conn.cursor()
         cursor.execute(sql_query)
         return cursor
+
+
+def parse_date(date_str, fmt="%Y-%m-%d %H:%M:%S"):
+    try:
+        return datetime.strptime(date_str, fmt)
+    except ValueError:
+        return None
