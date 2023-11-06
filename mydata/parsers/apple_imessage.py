@@ -2,17 +2,22 @@
 Import Apple iMessage data (sms, mms, imessage) from ~/Library/Messages/chat.db.
 """
 import glob
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
 import phonenumbers
-from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from rdflib import XSD, Graph, Namespace, URIRef
 
-from mydata.utils import SQLiteConnection
+from mydata.utils import SQLiteConnection, parse_datetime
 
 APPLE_TYPE = Namespace("https://ownld.org/service/apple/")
 APPLE_DATA = Namespace("mydata://db/service/apple/")
+
+context_jsonld = {
+    "@vocab": APPLE_TYPE,
+    "contacts": {"@id": "contact", "@type": "@id"},
+    "chat": {"@type": "@id"},
+}
 
 MESSAGE_QUERY = """
     SELECT
@@ -113,63 +118,78 @@ def guid_ref(guid):
     return APPLE_DATA[quote(f"{guid}")]
 
 
-def parse_imessage(graph, db_file):
+def guid_to_contacts(guid):
+    contacts = []
+    if guid.startswith("SMS;-;"):
+        sms_id = guid[len("SMS;-;") :]
+        try:
+            number = phonenumbers.parse(sms_id)
+            number_norm = phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.E164)
+            contacts.append(URIRef(f"tel:{number_norm}"))
+        except phonenumbers.NumberParseException:
+            contacts.append(URIRef(f"sms:{quote(sms_id)}"))
+    if guid.startswith("iMessage;-;"):
+        imessage_id = guid[len("iMessage;-;") :]
+        contacts.append(URIRef(f"imessage:{imessage_id}"))
+        try:
+            number = phonenumbers.parse(imessage_id)
+            number_norm = phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.E164)
+            contacts.append(URIRef(f"tel:{number_norm}"))
+        except phonenumbers.NumberParseException:
+            pass
+    return contacts
+
+
+def parse_imessage(db_file):
     with SQLiteConnection(db_file) as db:
         chats = db.sql(CHAT_QUERY)
         for chat in chats:
-            chat_ref = guid_ref(chat["guid"])
+            yield {
+                "@id": guid_ref(chat["guid"]),
+                "@type": "Chat",
+                "guid": chat["guid"],
+                "contacts": guid_to_contacts(chat["guid"]),
+                "account": {
+                    "@id": guid_ref(chat["account_id"]),
+                    "@type": "Account",
+                    "guid": chat["account_id"],
+                    "contacts": guid_to_contacts(chat["account_id"]),
+                },
+                "identifier": chat["chat_identifier"],
+                "service": chat["service_name"],
+                "display_name": chat["display_name"] if chat["display_name"] != "" else None,
+                "is_archived": bool(chat["is_archived"]) if chat["is_archived"] is not None else None,
+                "is_filtered": bool(chat["is_filtered"]) if chat["is_filtered"] is not None else None,
+                "is_blackholed": bool(chat["is_blackholed"]) if chat["is_blackholed"] is not None else None,
+            }
 
-            graph.add((chat_ref, RDF.type, APPLE_TYPE["Chat"]))
-            graph.add((chat_ref, APPLE_TYPE["guid"], Literal(chat["guid"])))
-            graph.add((chat_ref, APPLE_TYPE["account"], guid_ref(chat["account_id"])))
-
-            graph.add((chat_ref, APPLE_TYPE["identifier"], Literal(chat["chat_identifier"])))
-            graph.add((chat_ref, APPLE_TYPE["service"], Literal(chat["service_name"])))
-            if chat["display_name"]:
-                graph.add((chat_ref, APPLE_TYPE["display_name"], Literal(chat["display_name"])))
-
-            for binary_col in ("is_archived", "is_filtered", "is_blackholed"):
-                if chat[binary_col] is not None:
-                    graph.add((chat_ref, APPLE_TYPE[binary_col], Literal(bool(chat[binary_col]), datatype=XSD.boolean)))
-
-            if chat["guid"].startswith("SMS;-;"):
-                sms_id = chat["guid"][len("SMS;-;") :]
-                try:
-                    number = phonenumbers.parse(sms_id)
-                    number_norm = phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.E164)
-                    graph.add((chat_ref, APPLE_TYPE["contact"], URIRef(f"tel:{number_norm}")))
-                except phonenumbers.NumberParseException:
-                    graph.add((chat_ref, APPLE_TYPE["contact"], URIRef(f"sms:{quote(sms_id)}")))
-
-            if chat["guid"].startswith("iMessage;-;"):
-                imessage_id = chat["guid"][len("iMessage;-;") :]
-                graph.add((chat_ref, APPLE_TYPE["contact"], URIRef(f"imessage:{imessage_id}")))
-                try:
-                    number = phonenumbers.parse(imessage_id)
-                    number_norm = phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.E164)
-                    graph.add((chat_ref, APPLE_TYPE["contact"], URIRef(f"tel:{number_norm}")))
-                except phonenumbers.NumberParseException:
-                    pass
+        links = db.sql(LINK_QUERY)
+        for link in links:
+            yield {
+                "@id": guid_ref(link["message_guid"]),
+                "chat": guid_ref(link["chat_guid"]),
+            }
 
         messages = db.sql(MESSAGE_QUERY)
         for message in messages:
-            message_ref = guid_ref(message["guid"])
-
-            graph.add((message_ref, RDF.type, APPLE_TYPE["Message"]))
+            record = {
+                "@id": guid_ref(message["guid"]),
+                "@type": "Message",
+            }
 
             for guid_col in ("account_guid", "associated_message_guid", "reply_to_guid", "thread_originator_guid"):
                 if message[guid_col] is not None:
                     type_name = guid_col[: -len("_guid")]
-                    graph.add((message_ref, APPLE_TYPE[type_name], guid_ref(message[guid_col])))
+                    record[type_name] = guid_ref(message[guid_col])
 
             for time_col in ("time", "time_read", "time_delivered", "time_retracted", "time_edited"):
-                if message[time_col] is not None:
-                    dt = datetime.strptime(message[time_col], "%Y-%m-%d %H:%M:%S")
-                    graph.add((message_ref, APPLE_TYPE[time_col], Literal(dt, datatype=XSD.dateTime)))
+                record[time_col] = {
+                    "@value": parse_datetime(message[time_col], "%Y-%m-%d %H:%M:%S"),
+                    "@type": XSD.dateTime,
+                }
 
             for text_col in ("text", "subject", "service", "destination_caller_id"):
-                if message[text_col] is not None:
-                    graph.add((message_ref, APPLE_TYPE[text_col], Literal(message[text_col])))
+                record[text_col] = message[text_col]
 
             for binary_col in (
                 "is_archive",
@@ -197,35 +217,26 @@ def parse_imessage(graph, db_file):
                 "was_detonated",
                 "was_downgraded",
             ):
-                if message[binary_col] is not None:
-                    graph.add(
-                        (message_ref, APPLE_TYPE[binary_col], Literal(bool(message[binary_col]), datatype=XSD.boolean))
-                    )
+                record[binary_col] = bool(message[binary_col]) if message[binary_col] is not None else None
 
-        links = db.sql(LINK_QUERY)
-        for link in links:
-            graph.add((guid_ref(link["message_guid"]), APPLE_TYPE["chat"], guid_ref(link["chat_guid"])))
+            yield record
 
 
 def discover_and_parse_imessage(graph):
     default_chat_path = Path.home() / "Library/Messages/chat.db"
     if default_chat_path.exists():
-        parse_imessage(graph, default_chat_path)
+        for record in parse_imessage(default_chat_path):
+            graph.parse(data=record, format="json-ld", context=context_jsonld)
     for db_filename in glob.glob("exports/**/chat*.db", recursive=True):
-        parse_imessage(graph, db_filename)
+        for record in parse_imessage(db_filename):
+            graph.parse(data=record, format="json-ld", context=context_jsonld)
 
 
 def main():
     graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_apple", APPLE_TYPE)
-
     discover_and_parse_imessage(graph)
-
     print(f"Triples: {len(graph)}")
-
-    graph.serialize("cache/apple_imessage.ttl", format="turtle")
+    graph.serialize("cache/apple_imessage_jsonld.ttl", format="turtle")
 
 
 if __name__ == "__main__":

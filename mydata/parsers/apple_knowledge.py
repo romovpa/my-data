@@ -13,7 +13,7 @@ from pathlib import Path
 from rdflib import Graph
 from rdflib.namespace import Namespace
 
-from mydata.utils import SQLiteConnection, parse_date
+from mydata.utils import SQLiteConnection, parse_datetime
 
 APPLE_TYPE = Namespace("https://ownld.org/service/apple/")
 APPLE_DATA = Namespace("mydata://db/service/apple/")
@@ -75,9 +75,9 @@ def parse_knowldegeC(db_file):
                 "@type": APPLE_TYPE[f"event/{event_type}"],
                 #
                 "uuid": row["uuid"],
-                "startDate": parse_date(row["start_time"], "%Y-%m-%d %H:%M:%S"),
-                "endDate": parse_date(row["end_time"], "%Y-%m-%d %H:%M:%S"),
-                "createdTime": parse_date(row["created_time"], "%Y-%m-%d %H:%M:%S"),
+                "startDate": parse_datetime(row["start_time"], "%Y-%m-%d %H:%M:%S"),
+                "endDate": parse_datetime(row["end_time"], "%Y-%m-%d %H:%M:%S"),
+                "createdTime": parse_datetime(row["created_time"], "%Y-%m-%d %H:%M:%S"),
                 #
                 "bundle": {
                     "@id": APPLE_DATA[f"bundle/{row['bundle_id']}"],

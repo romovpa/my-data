@@ -112,7 +112,9 @@ class SQLiteConnection:
         return cursor
 
 
-def parse_date(date_str, fmt="%Y-%m-%d %H:%M:%S"):
+def parse_datetime(date_str, fmt="%Y-%m-%d %H:%M:%S"):
+    if date_str is None:
+        return None
     try:
         return datetime.strptime(date_str, fmt)
     except ValueError:
