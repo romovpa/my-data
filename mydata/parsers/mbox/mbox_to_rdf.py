@@ -1,11 +1,7 @@
-import datetime
 import hashlib
 import json
 import mailbox
-import multiprocessing
-import os
 import shutil
-import tempfile
 import traceback
 import warnings
 import zipfile
@@ -14,17 +10,23 @@ from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 from bs4 import BeautifulSoup
-from rdflib import Graph, Literal, URIRef
-from rdflib.namespace import RDF, XSD, Namespace
+from rdflib import Graph
+from rdflib.namespace import XSD, Namespace
 from rdflib.term import _is_valid_uri
 from tqdm import tqdm
 
-from mydata.parsers.mbox.email_data import MboxChunk, Message, mbox_chunks
+from mydata.parsers.mbox.email_data import Message
+from mydata.utils import add_records_to_graph
 
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
 
 MBOX_TYPE = Namespace("https://ownld.org/service/mbox/")
 MBOX_DATA = Namespace("mydata://db/service/mbox/")
+
+context_jsonld = {
+    "@vocab": MBOX_TYPE,
+    "dateSent": {"@type": XSD["dateTime"]},
+}
 
 
 def get_message_ref(message_id):
@@ -52,8 +54,16 @@ def get_attachment_id(attachment):
     return hashlib.sha1((content_hash + "$" + filename).encode()).hexdigest()
 
 
-def message_to_rdf(msg):
-    # Extracting links and text from the message contents
+def addr_to_record(addr):
+    uri = f"mailto:{addr.normalized}"
+    return {
+        "address": {"@id": uri} if _is_valid_uri(uri) else None,
+        "rawAddress": addr.email,
+        "name": addr.name,
+    }
+
+
+def extract_text(msg):
     text = None
     if msg.content_plain is not None:
         text = msg.content_plain
@@ -61,104 +71,53 @@ def message_to_rdf(msg):
         soup = BeautifulSoup(msg.content_html, "html.parser")
         if text is None:
             text = soup.get_text()
+    return text
 
+
+def parse_message(msg):
     if msg.message_id is None:
-        return []
+        return {}
 
     message_ref = get_message_ref(msg.message_id)
 
-    triples = [
-        (message_ref, RDF.type, MBOX_TYPE.Message),
-        (message_ref, MBOX_TYPE.messageId, Literal(msg.message_id)),
-        (message_ref, MBOX_TYPE.subject, Literal(msg.subject)),
-        (message_ref, MBOX_TYPE.text, Literal(text)),
-    ]
-
-    if msg.datetime is not None:
-        triples.append((message_ref, MBOX_TYPE.dateSent, Literal(msg.datetime, datatype=XSD.dateTime)))
-
-    if msg.in_reply_to is not None:
-        triples.append((message_ref, MBOX_TYPE.inReplyTo, get_message_ref(msg.in_reply_to)))
-    if msg.thread_id is not None:
-        triples.append((message_ref, MBOX_TYPE.thread, get_thread_ref(msg.thread_id)))
-
-    # Addresses
-    if msg.addr_from is not None:
-        uri = f"mailto:{msg.addr_from.normalized}"
-        if _is_valid_uri(uri):
-            triples.append((message_ref, MBOX_TYPE.sender, URIRef(uri)))
-        triples.append((message_ref, MBOX_TYPE.senderEmail, Literal(msg.addr_from.email)))
-        if msg.addr_from.name:
-            triples.append((message_ref, MBOX_TYPE.senderName, Literal(msg.addr_from.name)))
-
-    if msg.addrs_to is not None:
-        for addr in msg.addrs_to:
-            uri = f"mailto:{addr.normalized}"
-            if _is_valid_uri(uri):
-                triples.append((message_ref, MBOX_TYPE.recipient, URIRef(uri)))
-    if msg.addrs_cc is not None:
-        for addr in msg.addrs_cc:
-            uri = f"mailto:{addr.normalized}"
-            if _is_valid_uri(uri):
-                triples.append((message_ref, MBOX_TYPE.ccRecipient, URIRef(uri)))
-    if msg.addrs_bcc is not None:
-        for addr in msg.addrs_bcc:
-            uri = f"mailto:{addr.normalized}"
-            if _is_valid_uri(uri):
-                triples.append((message_ref, MBOX_TYPE.bccRecipient, URIRef(uri)))
-    if msg.addr_reply_to is not None:
-        uri = f"mailto:{msg.addr_reply_to.normalized}"
-        if _is_valid_uri(uri):
-            triples.append((message_ref, MBOX_TYPE.replyTo, URIRef(uri)))
-
-    # Attachments
-    for attachment in msg.attachments:
-        try:
-            attachment_id = get_attachment_id(attachment)
-            attachment_ref = message_ref + f"/attachment/{attachment_id}"
-
-            triples.append((message_ref, MBOX_TYPE.attachment, attachment_ref))
-            triples.append((attachment_ref, RDF.type, MBOX_TYPE.Attachment))
-            triples.append((attachment_ref, MBOX_TYPE.name, Literal(attachment.get_filename())))
-            triples.append(
-                (
-                    attachment_ref,
-                    MBOX_TYPE.contentSize,
-                    Literal(len(attachment.get_content()), datatype=XSD.nonNegativeInteger),
-                )
-            )
-            triples.append((attachment_ref, MBOX_TYPE.encodingFormat, Literal(attachment.get_content_type())))
-        except:
-            pass
-
-    # Additional info
-    if msg["List-Id"]:
-        triples.append((message_ref, MBOX_TYPE.listId, Literal(msg["List-Id"])))
-
-    return triples
+    return {
+        "@id": message_ref,
+        "@type": "Message",
+        "messageId": msg.message_id,
+        "subject": msg.subject,
+        "text": extract_text(msg),
+        "dateSent": msg.datetime,
+        "inReplyTo": {
+            "@id": get_message_ref(msg.in_reply_to),
+        }
+        if msg.in_reply_to is not None
+        else None,
+        "thread": {
+            "@id": get_thread_ref(msg.thread_id),
+            "@type": "Thread",
+        }
+        if msg.thread_id is not None
+        else None,
+        "from": addr_to_record(msg.addr_from) if msg.addr_from is not None else None,
+        "to": [addr_to_record(addr) for addr in (msg.addrs_to or [])],
+        "cc": [addr_to_record(addr) for addr in (msg.addrs_cc or [])],
+        "bcc": [addr_to_record(addr) for addr in (msg.addrs_bcc or [])],
+        "replyTo": addr_to_record(msg.addr_reply_to) if msg.addr_reply_to is not None else None,
+        "attachment": [
+            {
+                "@id": message_ref + f"/attachment/{get_attachment_id(attachment)}",
+                "@type": "Attachment",
+                "name": attachment.get_filename(),
+                "contentSize": len(attachment.get_content()),
+                "encodingFormat": attachment.get_content_type(),
+            }
+            for attachment in msg.attachments
+        ],
+        "listId": msg["List-Id"],
+    }
 
 
-def parse_mbox_to_graph(graph, messages, verbose=False, desc=None):
-    if verbose:
-        messages = tqdm(messages, desc=desc)
-
-    for mbox_msg in messages:
-        try:
-            msg = Message(mbox_msg)
-
-            if msg.message_id is None:
-                continue
-
-            msg_triples = message_to_rdf(msg)
-            for triple in msg_triples:
-                graph.add(triple)
-
-        except Exception as e:
-            if verbose:
-                traceback.print_exc()
-
-
-def parse_mbox(graph, exports_dir="exports", cache_dir="cache"):
+def discover_and_parse(graph, exports_dir="exports", cache_dir="cache", parse_all=False):
     parsed_ids = set()
     exceptions = []
 
@@ -186,13 +145,8 @@ def parse_mbox(graph, exports_dir="exports", cache_dir="cache"):
                 if msg.message_id is None or msg.message_id in parsed_ids:
                     continue
 
-                msg_triples = message_to_rdf(msg)
-                for triple in msg_triples:
-                    graph.add(triple)
+                yield parse_message(msg)
                 parsed_ids.add(msg.message_id)
-
-            except KeyboardInterrupt:
-                save_introspection()
 
             except Exception as e:
                 exceptions.append(
@@ -203,109 +157,46 @@ def parse_mbox(graph, exports_dir="exports", cache_dir="cache"):
                         "traceback": traceback.format_exc(),
                     }
                 )
+                save_introspection()
 
-    zip_files = list(Path(exports_dir).glob("**/*.zip"))
-    for zip_file_idx, zip_file in enumerate(zip_files):
-        print(zip_file)
-        zip = ZipFile(zip_file)
-        mbox_files = [f for f in zip.namelist() if f.lower().endswith(".mbox")]
+    if parse_all:
+        zip_files = list(Path(exports_dir).glob("**/*.zip"))
+        for zip_file_idx, zip_file in enumerate(zip_files):
+            print(zip_file)
+            zip = ZipFile(zip_file)
+            mbox_files = [f for f in zip.namelist() if f.lower().endswith(".mbox")]
+            for mbox_file_idx, mbox_file in enumerate(mbox_files):
+                with TemporaryDirectory() as tmpdir:
+                    try:
+                        zip.extract(mbox_file, tmpdir)
+                    except zipfile.BadZipFile:
+                        continue
+
+                    records = process_mbox_file(f"{zip_file}:{mbox_file}", Path(tmpdir) / mbox_file)
+                    add_records_to_graph(graph, context_jsonld, records)
+
+                    graph.serialize(Path(cache_dir) / "mbox_intermediate.nt", format="nt", encoding="utf-8")
+
+                    shutil.rmtree(tmpdir)
+
+        mbox_files = Path(exports_dir).glob("**/*.mbox")
         for mbox_file_idx, mbox_file in enumerate(mbox_files):
-            with TemporaryDirectory() as tmpdir:
-                try:
-                    zip.extract(mbox_file, tmpdir)
-                except zipfile.BadZipFile:
-                    continue
+            records = process_mbox_file(mbox_file, mbox_file)
+            add_records_to_graph(graph, context_jsonld, records)
 
-                process_mbox_file(f"{zip_file}:{mbox_file}", Path(tmpdir) / mbox_file)
-
-                graph.serialize(Path(cache_dir) / "mbox.nt", format="nt", encoding="utf-8")
-
-                shutil.rmtree(tmpdir)
-
-    mbox_files = Path(exports_dir).glob("**/*.mbox")
-    for mbox_file_idx, mbox_file in enumerate(mbox_files):
-        process_mbox_file(mbox_file, mbox_file)
+    else:
+        mbox_file = "exports/Takeout/Mail/All mail Including Spam and Trash.mbox"
+        records = process_mbox_file(mbox_file, mbox_file)
+        add_records_to_graph(graph, context_jsonld, records)
 
     save_introspection()
 
 
-def process_mbox_chunk(filename, begin, end, output_file):
+def main():
     graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_mbox", MBOX_TYPE)
-
-    mbox_chunk = MboxChunk(filename, begin, end)
-    for i, mbox_msg in enumerate(mbox_chunk):
-        try:
-            msg = Message(mbox_msg)
-
-            if msg.message_id is None:
-                continue
-
-            msg_triples = message_to_rdf(msg)
-            for triple in msg_triples:
-                graph.add(triple)
-
-        except Exception:
-            pass
-
-    graph.serialize(output_file, format="nt", encoding="utf-8")
-
-
-def parse_mbox_parallel(exports_dir="exports", cache_dir="cache", chunk_size=100 * 1024 * 1024):
-    pool = multiprocessing.Pool(16)
-
-    output_dir = Path(cache_dir) / f"mbox_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    os.makedirs(output_dir, exist_ok=True)
-
-    print(output_dir)
-
-    def process_mbox_file(filename, desc):
-        print(filename)
-        for chunk in mbox_chunks(filename, chunk_size):
-            output_file = output_dir / f"{abs(hash(desc))}_{chunk.begin}_{chunk.end}.nt"
-            pool.apply_async(process_mbox_chunk, args=(chunk.filename, chunk.begin, chunk.end, output_file))
-
-    mbox_files = Path(exports_dir).glob("**/*.mbox")
-    for mbox_file_idx, mbox_file in enumerate(mbox_files):
-        process_mbox_file(mbox_file, mbox_file)
-
-    zip_files = list(Path(exports_dir).glob("**/*.zip"))
-    for zip_file_idx, zip_file in enumerate(zip_files):
-        print(zip_file)
-        zip = ZipFile(zip_file)
-        mbox_files = [f for f in zip.namelist() if f.lower().endswith(".mbox")]
-        for mbox_file_idx, mbox_file in enumerate(mbox_files):
-            with TemporaryDirectory() as tmpdir:
-                try:
-                    zip.extract(mbox_file, tmpdir)
-                except zipfile.BadZipFile:
-                    continue
-
-                process_mbox_file(Path(tmpdir) / mbox_file, f"{zip_file}:{mbox_file}")
-
-                shutil.rmtree(tmpdir)
-
-    pool.join()
-
-
-def discover_and_parse(graph):
-    parse_mbox(graph)
-
-
-def main(exports_dir="exports", cache_dir="cache"):
-    graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_mbox", MBOX_TYPE)
-
-    messages = MboxChunk('exports/mbox.mbox')
-    parse_mbox_to_graph(graph, messages, verbose=True)
-
-    graph.serialize(Path(cache_dir) / "mbox.nt", format="nt", encoding="utf-8")
-
-    # parse_mbox_parallel()
+    discover_and_parse(graph)
+    print("Triples:", len(graph))
+    graph.serialize("cache/mbox_jsonld.nt", format="nt", encoding="utf-8")
 
 
 if __name__ == "__main__":

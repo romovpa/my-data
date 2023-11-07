@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime
 from tempfile import TemporaryDirectory
 
+import dateutil.parser as dateutil_parser
 import jinja2
 import rdflib
 from IPython.display import HTML
@@ -112,10 +113,18 @@ class SQLiteConnection:
         return cursor
 
 
-def parse_datetime(date_str, fmt="%Y-%m-%d %H:%M:%S"):
+def parse_datetime(date_str, fmt=None):
     if date_str is None:
         return None
     try:
-        return datetime.strptime(date_str, fmt)
+        if fmt is not None:
+            return datetime.strptime(date_str, fmt)
+        else:
+            return dateutil_parser.parse(date_str)
     except ValueError:
         return None
+
+
+def add_records_to_graph(graph, context, records):
+    for record in records:
+        graph.parse(data=record, format="json-ld", context=context)

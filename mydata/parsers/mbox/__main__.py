@@ -1,4 +1,4 @@
-from .mailbox_analyzer import discover_and_parse_mbox
+from .mbox_to_rdf import main
 
 if __name__ == "__main__":
-    discover_and_parse_mbox()
+    main()

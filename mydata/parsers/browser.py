@@ -8,16 +8,24 @@ from pathlib import Path
 from sqlite3 import OperationalError
 from urllib.parse import quote
 
-from rdflib import Graph, Literal
-from rdflib.namespace import RDF, XSD, Namespace
+from rdflib import Graph
+from rdflib.namespace import XSD, Namespace
 
-from mydata.utils import SQLiteConnection
+from mydata.utils import SQLiteConnection, add_records_to_graph, parse_datetime
 
 BROWSER_TYPE = Namespace("https://ownld.org/service/browser/")
 BROWSER_DATA = Namespace("mydata://db/service/browser/")
 
 
-def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
+context_jsonld = {
+    "@vocab": BROWSER_TYPE,
+    "url": {"@type": XSD["anyURI"]},
+    "time": {"@type": XSD["dateTime"]},
+    "duration": {"@type": XSD["float"]},
+}
+
+
+def parse_web_history(db_file, sql, browser=None, has_duration=False):
     print(f"Parsing {db_file}")
 
     profile = Path(db_file).parts[-2]
@@ -31,30 +39,30 @@ def parse_web_history(graph, db_file, sql, browser=None, has_duration=False):
             return
 
         for row in cur:
-            time = datetime.strptime(row["time"], "%Y-%m-%d %H:%M:%S")
-            unixtime = (time - datetime(1970, 1, 1)).total_seconds()
-
+            time = parse_datetime(row["time"], "%Y-%m-%d %H:%M:%S")
+            unixtime = int((time - datetime(1970, 1, 1)).total_seconds())
             url = row["url"]
             url_hash = hashlib.sha1(url.encode()).hexdigest()
-
             visit_ref = BROWSER_DATA[f"visit/{unixtime}/{url_hash}"]
 
-            # TODO add who is actor (who is using the browser)
-            graph.add((visit_ref, RDF.type, BROWSER_TYPE["WebVisit"]))
-            graph.add((visit_ref, BROWSER_TYPE["url"], Literal(url, datatype=XSD["anyURI"])))
-            graph.add((visit_ref, BROWSER_TYPE["time"], Literal(time, datatype=XSD["dateTime"])))
-            if row["title"] is not None:
-                graph.add((visit_ref, BROWSER_TYPE["title"], Literal(row["title"])))
-            if browser is not None:
-                graph.add((visit_ref, BROWSER_TYPE["browser"], Literal(browser)))
-            if has_duration and row["duration"] is not None:
-                graph.add((visit_ref, BROWSER_TYPE["duration"], Literal(row["duration"], datatype=XSD["float"])))
-            graph.add((visit_ref, BROWSER_TYPE["profile"], profile_ref))
+            # generate JSON-LD record
+            yield {
+                "@id": visit_ref,
+                "@type": "WebVisit",
+                "url": url,
+                "time": time,
+                "title": row["title"],
+                "browser": browser,
+                "duration": row["duration"] if has_duration else None,
+                "profile": {
+                    "@id": profile_ref,
+                    "@type": "Profile",
+                },
+            }
 
 
-def parse_chrome_history(graph, db_file):
-    parse_web_history(
-        graph,
+def parse_chrome_history(db_file):
+    return parse_web_history(
         db_file,
         """
             SELECT
@@ -70,9 +78,8 @@ def parse_chrome_history(graph, db_file):
     )
 
 
-def parse_safari_history(graph, db_file):
-    parse_web_history(
-        graph,
+def parse_safari_history(db_file):
+    return parse_web_history(
         db_file,
         """
             SELECT
@@ -86,45 +93,30 @@ def parse_safari_history(graph, db_file):
     )
 
 
-def prepare_web_events():
-    # TODO add hardware device identifiers to know from which device it was collected
-    graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_browser", BROWSER_TYPE)
-
+def discover_and_parse(graph):
     # Scan all db files in the exports directory and in the macOS default locations
     chrome_dir_path = Path.home() / "Library/Application Support/Google/Chrome"
     for path in glob.glob(str(chrome_dir_path / "*/History")):
-        parse_chrome_history(graph, path)
+        add_records_to_graph(graph, context_jsonld, parse_chrome_history(path))
     for path in glob.glob("exports/**/Chrome_History*.db", recursive=True):
-        parse_chrome_history(graph, path)
+        add_records_to_graph(graph, context_jsonld, parse_chrome_history(path))
 
     safari_history_path = Path.home() / "Library/Safari/History.db"
     if safari_history_path.exists():
-        parse_safari_history(graph, Path.home() / "Library/Safari/History.db")
+        add_records_to_graph(graph, context_jsonld, parse_safari_history(Path.home() / "Library/Safari/History.db"))
     for path in glob.glob("exports/**/Safari_History*.db", recursive=True):
-        parse_safari_history(graph, path)
+        add_records_to_graph(graph, context_jsonld, parse_safari_history(path))
 
+
+def main():
+    # TODO add hardware device identifiers to know from which device it was collected
+    graph = Graph()
+    discover_and_parse(graph)
     print(f"Triples: {len(graph)}")
 
     # Using N-Triples, because Turtle is too slow (likely due to the large number of unique URIs)
-    graph.serialize("cache/web_events.nt", format="nt", encoding="utf-8")
-
-
-def discover_and_parse(graph):
-    chrome_history_path = Path.home() / "Library/Application Support/Google/Chrome/Default/History"
-    if chrome_history_path.exists():
-        parse_chrome_history(graph, Path.home() / "Library/Application Support/Google/Chrome/Default/History")
-    for path in glob.glob("exports/**/Chrome_History*.db", recursive=True):
-        parse_chrome_history(graph, path)
-
-    safari_history_path = Path.home() / "Library/Safari/History.db"
-    if safari_history_path.exists():
-        parse_safari_history(graph, Path.home() / "Library/Safari/History.db")
-    for path in glob.glob("exports/**/Safari_History*.db", recursive=True):
-        parse_safari_history(graph, path)
+    graph.serialize("cache/web_events_jsonld.nt", format="nt", encoding="utf-8")
 
 
 if __name__ == "__main__":
-    prepare_web_events()
+    main()

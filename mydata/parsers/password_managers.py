@@ -4,16 +4,24 @@ Password managers may help to identify accounts that you have forgotten about.
 import hashlib
 import re
 import urllib.parse
-from datetime import datetime
 from pathlib import Path
 
 import tldextract
-from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from rdflib import XSD, Graph, Namespace, URIRef
 
-from mydata.utils import SQLiteConnection
+from mydata.utils import SQLiteConnection, add_records_to_graph, parse_datetime
 
 BROWSER_TYPE = Namespace("https://ownld.org/service/browser/")
 BROWSER_DATA = Namespace("mydata://db/service/browser/")
+
+context_jsonld = {
+    "@vocab": BROWSER_TYPE,
+    "domain": {"@type": "@id"},
+    "url": {"@type": XSD["anyURI"]},
+    "timeLastUsed": {"@type": XSD["dateTime"]},
+    "timeLastModified": {"@type": XSD["dateTime"]},
+    "email": {"@type": "@id"},
+}
 
 
 def url_to_domain(url):
@@ -63,52 +71,28 @@ def parse_chrome_logins(graph, chrome_db_filename):
             username = row["username"]
 
             if domain is not None and username:
-                graph.add((login_ref, RDF.type, BROWSER_TYPE["WebLogin"]))
-                graph.add((login_ref, BROWSER_TYPE["domain"], BROWSER_DATA[f"domain/{domain}"]))
-                graph.add((login_ref, BROWSER_TYPE["url"], Literal(url, datatype=XSD["anyURI"])))
-                graph.add((login_ref, BROWSER_TYPE["username"], Literal(username)))
-
-                if row["time_last_used"] is not None:
-                    graph.add(
-                        (
-                            login_ref,
-                            BROWSER_TYPE["timeLastUsed"],
-                            Literal(
-                                datetime.strptime(row["time_last_used"], "%Y-%m-%d %H:%M:%S"), datatype=XSD["dateTime"]
-                            ),
-                        )
-                    )
-                if row["time_last_modified"] is not None:
-                    graph.add(
-                        (
-                            login_ref,
-                            BROWSER_TYPE["timeLastModified"],
-                            Literal(
-                                datetime.strptime(row["time_last_modified"], "%Y-%m-%d %H:%M:%S"),
-                                datatype=XSD["dateTime"],
-                            ),
-                        )
-                    )
-
-                if is_valid_email(username):
-                    graph.add((login_ref, BROWSER_TYPE["user"], URIRef(f"mailto:{username}")))
-
-
-def prepare_browser_logins():
-    graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_browser", BROWSER_TYPE)
-
-    chrome_db_filename = Path.home() / "Library/Application Support/Google/Chrome/Default/Login Data"
-    parse_chrome_logins(graph, chrome_db_filename)
-
-    graph.serialize("cache/browser_logins.ttl", format="turtle")
+                yield {
+                    "@id": login_ref,
+                    "@type": "WebLogin",
+                    "domain": URIRef(f"domain:{domain}"),
+                    "url": url,
+                    "username": username,
+                    "timeLastUsed": parse_datetime(row["time_last_used"], "%Y-%m-%d %H:%M:%S"),
+                    "timeLastModified": parse_datetime(row["time_last_modified"], "%Y-%m-%d %H:%M:%S"),
+                    "email": URIRef(f"mailto:{username}") if is_valid_email(username) else None,
+                }
 
 
 def discover_and_parse(graph):
     chrome_db_filename = Path.home() / "Library/Application Support/Google/Chrome/Default/Login Data"
-    parse_chrome_logins(graph, chrome_db_filename)
+    add_records_to_graph(graph, context_jsonld, parse_chrome_logins(graph, chrome_db_filename))
+
+
+def prepare_browser_logins():
+    graph = Graph()
+    discover_and_parse(graph)
+    print(f"Triples: {len(graph)}")
+    graph.serialize("cache/browser_logins_jsonld.ttl", format="turtle")
 
 
 if __name__ == "__main__":
