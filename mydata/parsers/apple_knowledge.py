@@ -8,7 +8,6 @@ Information about knowldgeC.db:
 """
 
 import glob
-import hashlib
 import os.path
 from datetime import datetime
 
@@ -16,7 +15,7 @@ import requests
 from rdflib import Graph
 from rdflib.namespace import Namespace
 
-from mydata.utils import SQLiteConnection, parse_datetime
+from mydata.utils import SQLiteConnection, get_file_hash, parse_datetime
 
 OWNLD_TYPE = Namespace("https://ownld.org/core/")
 APPLE_TYPE = Namespace("https://ownld.org/service/apple/")
@@ -91,22 +90,6 @@ def parse_knowldegeC(db_file):
             }
 
 
-def file_hash(filepath, hash_function="sha256"):
-    """
-    Compute hash of a file using a specified hash function (default is SHA256).
-
-    :param filepath: path to the file
-    :param hash_function: name of the hash function (e.g., 'sha256', 'md5')
-    :return: hexadecimal hash string of the file
-    """
-    hash_func = getattr(hashlib, hash_function)()
-    with open(filepath, "rb") as f:
-        # Read and update hash string value in blocks of 4K
-        for byte_block in iter(lambda: f.read(4096), b""):
-            hash_func.update(byte_block)
-    return f"{hash_function}:{hash_func.hexdigest()}"
-
-
 def load_data():
     """
     Common customizable part of all parsers, can be wrapped in a class or a decorator.
@@ -127,7 +110,7 @@ def load_data():
     for pattern in glob_pattern:
         for file in glob.glob(pattern, recursive=True):
             print(f"Parsing {file}")
-            file_h = file_hash(file)
+            file_hash = get_file_hash(file)
 
             records = parse_knowldegeC(file)
 
@@ -138,9 +121,9 @@ def load_data():
 
             if n_records > 0:
                 file_dep = {
-                    "@id": MY_DATA[f"file/{file_h}"],
+                    "@id": MY_DATA[f"file/{file_hash}"],
                     "@type": OWNLD_TYPE["File"],
-                    "hash": file_h,
+                    "hash": file_hash,
                     "absolutePath": os.path.abspath(file),
                     "size": os.path.getsize(file),
                     "createdAt": datetime.fromtimestamp(os.path.getctime(file)),
@@ -177,6 +160,9 @@ def load_data():
 
 
 def main():
+    """
+    CLI implementation
+    """
     # read config
 
     # import data
@@ -206,111 +192,6 @@ def main():
     print(resp.json())
 
     # upload required schemas
-
-
-"""
-
-Parser / importer:
-- discover_and_parse(config, optional[dataset]) -> (record...)
-
-CLI:
-my
-
-----
-
-Discover and parse
-1. discover_and_parse(config, dataset) -> (record...)
-
-Produce graphs
-1. (records) -> data_graph
-2. schema -> schema_graph
-
-Upload or save graphs
-1. Update existing graph
-2. Upload new graph
-
-----
-
-my generate-schema <script>
-
-Automatic generation of schema and json-ld context
-  - test run -> RDFS schema -> knowledge/parser.ttl
-  - filling descriptions with LLMs
-  - values stats, sanity checks, size estimates
-  - try to download the schema from the web; try to find it in knowledge folder
-
-In this script:
-    CONTEXT = {
-        "@vocab": APPLE_TYPE,
-        "ex": "http://example.com/",
-    }
-
-When parsing JSON-LD records: make sure that URIRef is used for @id, e.g. by wrapping it with {@id: ...}
-
-
-"""
-
-
-"""
-graph_metadata_jsonld = {
-    "@context": {
-        "@vocab": OWNLD,
-    },
-
-    "@id": OWNLD_DATA["graph/apple_knowledge"],  # graph:apple_knowledge
-    "@type": [
-        OWNLD["Graph"],        # core:Graph — this is a general graph
-        APPLE_TYPE["Graph"],   # apple:Graph — Apple-specific data
-    ],
-
-    # should be inferred from the type
-    "name": "Apple KnowledgeC",
-    "description": "Apple KnowledgeC database",
-
-    # who owns the data behind the graph
-    # maybe instead: creator
-    "owner": OWNLD_DATA["me"],
-
-    # additive pieces of the same graph parsed incrementally
-    "source": {
-        "@id": OWNLD_DATA["source/apple_knowledgeC/<hash>"],
-        "@type": OWNLD["Source"],
-
-        # unique identifier of the parser
-        # this resource should be created together with the schema
-        "script": APPLE_TYPE["KnowledgeCParser/1.0.0"],
-
-        "createdAt": "2020-01-01T00:00:00Z",
-        "timeElapsed": 12345,
-        "numTriples": 12345,
-
-        "dependsOn": [
-            # files that were parsed
-            {
-                "@type": OWNLD["File"],
-                "absolutePath": "/Users/peter/Library/Application Support/Knowledge/knowledgeC.db",
-                "hash": "sha256:...",
-                "size": 12345,
-                "createdAt": "2020-01-01T00:00:00Z",
-                "modifiedAt": "2020-01-01T00:00:00Z",
-            },
-            {
-                "@type": OWNLD["File"],
-                "absolutePath": "/Users/peter/Downloads/knowledgeC.db",
-                "hash": "sha256:...",
-                "size": 12345,
-                "createdAt": "2020-01-01T00:00:00Z",
-                "modifiedAt": "2020-01-01T00:00:00Z",
-            },
-
-            # graphs that were used
-            {"@id": OWNLD_DATA["graph/apple_health/version_<datetime>_<hash>"]},
-            {"@id": OWNLD_DATA["graph/other_graph/version_<datetime>_<hash>"]},
-        ],
-
-    }
-}
-"""
 
 
 if __name__ == "__main__":

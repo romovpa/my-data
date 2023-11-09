@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import itertools
 import shutil
 import sqlite3
@@ -128,3 +129,19 @@ def parse_datetime(date_str, fmt=None):
 def add_records_to_graph(graph, context, records):
     for record in records:
         graph.parse(data=record, format="json-ld", context=context)
+
+
+def get_file_hash(filepath, hash_function="sha256"):
+    """
+    Compute hash of a file using a specified hash function (default is SHA256).
+
+    :param filepath: path to the file
+    :param hash_function: name of the hash function (e.g., 'sha256', 'md5')
+    :return: hexadecimal hash string of the file
+    """
+    hash_func = getattr(hashlib, hash_function)()
+    with open(filepath, "rb") as f:
+        # Read and update hash string value in blocks of 4K
+        for byte_block in iter(lambda: f.read(4096), b""):
+            hash_func.update(byte_block)
+    return f"{hash_function}:{hash_func.hexdigest()}"
