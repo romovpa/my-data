@@ -3,12 +3,22 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from rdflib import Graph, Literal
-from rdflib.namespace import RDF, XSD, Namespace
+from rdflib import Graph
+from rdflib.namespace import XSD, Namespace
 from tqdm import tqdm
+
+from mydata.utils import add_records_to_graph
 
 TG_TYPE = Namespace("https://ownld.org/service/telegram/")
 TG_DATA = Namespace("mydata://db/service/telegram/")
+
+
+context_jsonld = {
+    "@vocab": TG_TYPE,
+    "chat": {"@type": "@id"},
+    "sender": {"@type": "@id"},
+    "time": {"@type": XSD["dateTime"]},
+}
 
 
 TG_CHAT_TYPES = {
@@ -23,8 +33,7 @@ TG_CHAT_TYPES = {
 }
 
 
-def parse_telegram(graph, dump_dir):
-    # results.json
+def parse_telegram(dump_dir):
     with open(dump_dir / "result.json") as fin:
         results = json.load(fin)
 
@@ -32,14 +41,12 @@ def parse_telegram(graph, dump_dir):
         chat_id = chat["id"]
         chat_ref = TG_DATA[f"chat/{chat_id}"]
 
-        graph.add((chat_ref, RDF.type, TG_TYPE.Chat))
-        graph.add((chat_ref, RDF.type, TG_CHAT_TYPES[chat["type"]]))
-        graph.add((chat_ref, TG_TYPE.id, Literal(chat_id)))
-
-        if "name" in chat:
-            graph.add((chat_ref, TG_TYPE.name, Literal(chat["name"])))
-        else:
-            print(json.dumps(chat, indent=2))
+        yield {
+            "@id": chat_ref,
+            "@type": ["Chat", TG_CHAT_TYPES[chat["type"]]],
+            "id": chat_id,
+            "name": chat.get("name"),
+        }
 
         for message in tqdm(chat["messages"], position=1, leave=False, desc="Messages"):
             message_id = message["id"]
@@ -47,48 +54,38 @@ def parse_telegram(graph, dump_dir):
 
             time = datetime.fromtimestamp(int(message["date_unixtime"]))
 
-            graph.add((message_ref, RDF.type, TG_TYPE.Message))
-            graph.add((message_ref, TG_TYPE.chat, chat_ref))
-            graph.add((message_ref, TG_TYPE.messageType, Literal(message["type"])))
-            graph.add((message_ref, TG_TYPE.time, Literal(time, datatype=XSD.dateTime)))
-
-            if message["type"] != "message":
-                continue
-
-            if "text" in message:
-                graph.add((message_ref, TG_TYPE.text, Literal(message["text"])))
-
-            if "reply_to_message_id" in message:
-                reply_to_message_ref = TG_DATA[f'chat/{chat_id}/message/{message["reply_to_message_id"]}']
-                graph.add((message_ref, TG_TYPE.replyTo, reply_to_message_ref))
-
-            if "mime_type" in message:
-                graph.add((message_ref, TG_TYPE.mimeType, Literal(message["mime_type"])))
-
-            sender_id = message["from_id"]
-            sender_ref = TG_DATA[f"user/{sender_id}"]
-
-            graph.add((message_ref, TG_TYPE.sender, sender_ref))
-
-            graph.add((sender_ref, RDF.type, TG_TYPE.User))
-            graph.add((sender_ref, TG_TYPE.name, Literal(message["from"])))
-
-
-def main():
-    graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_tg", TG_TYPE)
-
-    discover_and_parse(graph)
-
-    graph.serialize("cache/telegram.nt", format="nt", encoding="utf-8")
+            yield {
+                "@id": message_ref,
+                "@type": "Message",
+                "chat": chat_ref,
+                "messageType": message["type"],
+                "time": time,
+                "text": message.get("text"),
+                "replyTo": TG_DATA[f"chat/{chat_id}/message/{message['reply_to_message_id']}"]
+                if "reply_to_message_id" in message
+                else None,
+                "mimeType": message.get("mime_type"),
+                "sender": {
+                    "@id": TG_DATA[f"user/{message['from_id']}"],
+                    "@type": "User",
+                    "name": message.get("from_name"),
+                }
+                if "from_id" in message
+                else None,
+            }
 
 
 def discover_and_parse(graph):
     for results_file in glob.glob("exports/telegram/**/result.json", recursive=True):
         dump_dir = Path(results_file).parent
-        parse_telegram(graph, dump_dir)
+        add_records_to_graph(graph, context_jsonld, parse_telegram(dump_dir))
+
+
+def main():
+    graph = Graph()
+    discover_and_parse(graph)
+    print(f"Triples: {len(graph)}")
+    graph.serialize("cache/telegram_jsonld.nt", format="nt", encoding="utf-8")
 
 
 if __name__ == "__main__":

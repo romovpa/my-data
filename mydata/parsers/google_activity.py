@@ -1,26 +1,29 @@
-import datetime
 import glob
 import hashlib
 import json
-import re
 import zipfile
-from dataclasses import dataclass
-from pathlib import Path
-from typing import List
 
 import dateutil.parser
-import scrapy
-from lxml import etree
-from rdflib import Graph, Literal, URIRef
-from rdflib.namespace import RDF, XSD, Namespace
+from rdflib import Graph, URIRef
+from rdflib.namespace import XSD, Namespace
 from rdflib.term import _is_valid_uri
-from tqdm import tqdm
+
+from mydata.utils import add_records_to_graph
 
 GOOGLE_TYPE = Namespace("https://ownld.org/service/google/")
 GOOGLE_DATA = Namespace("mydata://db/service/google/")
 
+context_jsonld = {
+    "@vocab": GOOGLE_TYPE,
+    "url": {"@type": XSD["anyURI"]},
+    "time": {"@type": XSD["dateTime"]},
+    "titleUrl": {"@type": "@id"},
+    "products": {"@id": "product", "@type": "@id"},
+    "label": "http://www.w3.org/2000/01/rdf-schema#label",
+}
 
-def process_activity(graph, record):
+
+def parse_activity(record):
     time = dateutil.parser.parse(record["time"])
 
     # resource URI based on the hash of (time, header, title, titleUrl)
@@ -31,58 +34,70 @@ def process_activity(graph, record):
     ).hexdigest()
     activity_ref = GOOGLE_DATA[f"activity/{activity_hash}"]
 
-    graph.add((activity_ref, RDF.type, GOOGLE_TYPE.Activity))
-    graph.add((activity_ref, GOOGLE_TYPE.time, Literal(time, datatype=XSD.dateTime)))
-    if record.get("header") is not None:
-        graph.add((activity_ref, GOOGLE_TYPE.header, Literal(record["header"])))
-    if record.get("title") is not None:
-        graph.add((activity_ref, GOOGLE_TYPE.name, Literal(record["title"])))
+    url_ref = None
     if record.get("titleUrl") is not None:
         url = record["titleUrl"].replace(" ", "+")
         if _is_valid_uri(url):
-            graph.add((activity_ref, GOOGLE_TYPE.url, URIRef(url)))
-    if "products" in record:
-        for product in record["products"]:
-            graph.add((activity_ref, GOOGLE_TYPE.product, GOOGLE_TYPE["product/" + product.replace(" ", "+")]))
+            url_ref = URIRef(url)
+
+    return {
+        "@id": activity_ref,
+        "@type": "Activity",
+        "time": time,
+        "header": record.get("header"),
+        "title": record.get("title"),
+        "titleUrl": url_ref,
+        "products": [
+            {
+                "@id": GOOGLE_TYPE["product/" + product.replace(" ", "+")],
+                "@type": "Product",
+                "label": product,
+            }
+            for product in record.get("products", [])
+        ],
+    }
 
 
-def process_takeout_file(graph, zip_archive, file):
+def parse_takeout_file(zip_archive, file):
     if file.filename.endswith("MyActivity.json") or file.filename.endswith("My Activity.json"):
         print(f"    parsing {file.filename}")
         records = json.load(zip_archive.open(file))
         for record in records:
-            process_activity(graph, record)
+            yield parse_activity(record)
+
     if file.filename.endswith("MyActivity.html"):
-        print(f"    parsing {file.filename}")
-        records = parse_html_activity(zip_archive.open(file))
-        for record in records:
-            process_activity(graph, record)
+        pass  # TODO: implement parsing html
 
 
-def prepare_google_activity():
-    graph = Graph()
-    graph.bind("rdf", RDF)
-    graph.bind("xsd", XSD)
-    graph.bind("own_google", GOOGLE_TYPE)
-
+def discover_and_parse(graph):
     for takeout_filename in glob.glob("exports/**/takeout-*.zip", recursive=True):
         takeout_zip = zipfile.ZipFile(takeout_filename)
         print(f"Processing {takeout_filename}")
         for file in takeout_zip.filelist:
-            process_takeout_file(graph, takeout_zip, file)
+            add_records_to_graph(graph, context_jsonld, parse_takeout_file(takeout_zip, file))
 
+
+def main():
+    graph = Graph()
+    discover_and_parse(graph)
     print(f"Triples: {len(graph)}")
 
     # Using N-Triples, because Turtle is too slow (likely due to the large number of unique URIs)
-    graph.serialize("cache/google_takeout.nt", format="nt", encoding="utf-8")
+    graph.serialize("cache/google_takeout_jsonld.nt", format="nt", encoding="utf-8")
 
 
+if __name__ == "__main__":
+    main()
+
+
+# TODO implement this parser (sadly google takeout uses html by default)
+"""
 def parse_html_activity(filename):
     # TODO throw warning suggesting to use the json version instead
-    # TODO implement this parser (sadly google takeout uses html by default)
     # TODO make sure that URIRef parsed from json and html are the same
 
     # The code below can be helpful for implementing this parser
+    raise NotImplementedError()
 
     @dataclass
     class Token:
@@ -102,7 +117,7 @@ def parse_html_activity(filename):
         params: List[str]
         urls: List[str]
 
-    time_re = re.compile(r"[A-Za-z]+ [0-9]+, [0-9]{4}, [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[\w ]+")
+    time_re = re.compile(r"[A-Za-z]+ [0-9]+, [0-9]{4}, [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[\w ]+") # noqa: W605
 
     def clean_text(text):
         return text.replace("\u2003", " ").replace("\xa0", " ").strip()
@@ -184,14 +199,4 @@ def parse_html_activity(filename):
 
     return []
 
-
-def discover_and_parse(graph):
-    for takeout_filename in glob.glob("exports/**/takeout-*.zip", recursive=True):
-        takeout_zip = zipfile.ZipFile(takeout_filename)
-        print(f"Processing {takeout_filename}")
-        for file in takeout_zip.filelist:
-            process_takeout_file(graph, takeout_zip, file)
-
-
-if __name__ == "__main__":
-    prepare_google_activity()
+"""
