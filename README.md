@@ -95,7 +95,8 @@ modify the dataset configuration file `FUSEKI_ROOT/run/configuration/mydata.ttl`
             a ja:InfModel;
             ja:baseModel [
                 a tdb2:GraphTDB2;
-                tdb2:location  "FUSEKI_ROOT/run/databases/mydata"
+                tdb2:location  "FUSEKI_ROOT/run/databases/mydata";
+                tdb2:unionDefaultGraph true 
             ];
             ja:reasoner [
                 ja:reasonerURL <http://jena.hpl.hp.com/2003/RDFSExptRuleReasoner>
