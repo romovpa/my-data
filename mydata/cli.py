@@ -1,5 +1,4 @@
 import requests
-from rdflib.namespace import Namespace
 
 from mydata.parsers.apple_knowledge import AppleKnowledgeCParser
 
@@ -16,11 +15,10 @@ def main():
             - update_endpoint
     """
     # read config
-    MY_DATA = Namespace("mydata://db/")
 
     # import data
     # TODO add a choice of parser
-    parser = AppleKnowledgeCParser(MY_DATA)
+    parser = AppleKnowledgeCParser()
     graph, graph_uri = parser.run()
 
     # checks and auto-generated schema

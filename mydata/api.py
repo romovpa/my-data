@@ -1,30 +1,20 @@
 import glob
 import os
+import uuid
 from datetime import datetime
 from typing import Any, List, Optional
 
-from rdflib import Graph, Namespace, URIRef
+from rdflib import Graph, URIRef
 
+from mydata.namespace import MY, OWNLD
 from mydata.utils import get_file_hash
-
-OWNLD_TYPE = Namespace("https://ownld.org/core/")
 
 
 class DiscoverAndParse:
     glob_pattern: List[str] = []
+    graph_uri: URIRef
     graph_types: List[URIRef] = []
     script_record: Optional[dict[str, Any]] = None
-
-    def __init__(self, data_prefix):
-        self.data_prefix = Namespace(data_prefix)
-
-    @property
-    def graph_uri(self):
-        raise NotImplementedError
-
-    @property
-    def source_uri(self):
-        raise NotImplementedError
 
     def parse_file(self, file):
         raise NotImplementedError
@@ -32,6 +22,7 @@ class DiscoverAndParse:
     def run(self):
         graph = Graph()
 
+        run_uuid = uuid.uuid1().hex[:8]
         start_time = datetime.now()
 
         # discover and parse files
@@ -50,8 +41,8 @@ class DiscoverAndParse:
 
                 if n_records > 0:
                     file_dep = {
-                        "@id": self.data_prefix[f"file/{file_hash}"],
-                        "@type": OWNLD_TYPE["File"],
+                        "@id": MY[f"file/{file_hash}"],
+                        "@type": OWNLD["core#File"],
                         "hash": file_hash,
                         "absolutePath": os.path.abspath(file),
                         "size": os.path.getsize(file),
@@ -62,12 +53,12 @@ class DiscoverAndParse:
 
         # add graph and source metadata
         graph_metadata = {
-            "@context": {"@vocab": OWNLD_TYPE},
+            "@context": {"@vocab": OWNLD["core#"]},
             "@id": self.graph_uri,
-            "@type": [OWNLD_TYPE["Graph"]] + self.graph_types,
+            "@type": [OWNLD["core#Graph"]] + self.graph_types,
             "source": {
-                "@type": OWNLD_TYPE["Source"],
-                "@id": self.source_uri,
+                "@type": OWNLD["core#Source"],
+                "@id": MY[f"source/{start_time.isoformat()}/{run_uuid}"],
                 "script": self.script_record,
                 "dependsOn": dependencies,
                 "createdAt": start_time,

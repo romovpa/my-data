@@ -7,47 +7,31 @@ Information about knowldgeC.db:
 
 """
 
-from datetime import datetime
-
-from rdflib.namespace import Namespace
-
 from mydata.api import DiscoverAndParse
+from mydata.namespace import MY, OWNLD
 from mydata.utils import SQLiteConnection, parse_datetime
-
-OWNLD_TYPE = Namespace("https://ownld.org/core/")
-APPLE_TYPE = Namespace("https://ownld.org/service/apple/")
-MY_DATA = Namespace("mydata://db/")
-APPLE_DATA = Namespace("mydata://db/service/apple/")
 
 
 class AppleKnowledgeCParser(DiscoverAndParse):
+    # discovery
     glob_pattern = [
         "exports/knowledgeC.db",
         # os.path.expanduser("~/Library/Application Support/Knowledge/knowledgeC.db"),
         # "exports/**/knowledgeC*.db",
     ]
 
+    # graph node
+    graph_uri = MY["apple/knowledge"]
     graph_types = [
-        APPLE_TYPE["KnowledgeGraph"],
+        OWNLD["apple#KnowledgeGraph"],
     ]
 
+    # script metadata
     script_record = {
-        "@id": APPLE_TYPE["KnowledgeCParser/1.0.0"],
-        "@type": OWNLD_TYPE["Parser"],
+        "@id": OWNLD["apple/knowledge/parser/v1"],
+        "@type": OWNLD["core#Parser"],
         "commit": "1234567890abcdef",
     }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.APPLE_DATA = Namespace(self.data_prefix["service/apple/"])
-
-    @property
-    def graph_uri(self):
-        return self.APPLE_DATA["graph/apple_knowledge"]
-
-    @property
-    def source_uri(self):
-        return self.data_prefix[f"source/apple_knowledgeC/{datetime.now().isoformat()}"]
 
     def parse_file(self, file):
         with SQLiteConnection(file) as db:
@@ -91,10 +75,10 @@ class AppleKnowledgeCParser(DiscoverAndParse):
                 event_type = row["type"].lstrip("/").split("/", 1)[0]
 
                 yield {
-                    "@context": {"@vocab": APPLE_TYPE},
+                    "@context": {"@vocab": OWNLD["apple#"]},
                     #
-                    "@id": APPLE_DATA[f'{row["uuid"]}'],
-                    "@type": APPLE_TYPE[f"event/{event_type}"],
+                    "@id": MY[f"apple/knowledge/{row['uuid']}"],
+                    "@type": OWNLD[f"apple/{event_type}"],
                     #
                     "uuid": row["uuid"],
                     "startDate": parse_datetime(row["start_time"], "%Y-%m-%d %H:%M:%S"),
@@ -102,14 +86,14 @@ class AppleKnowledgeCParser(DiscoverAndParse):
                     "createdTime": parse_datetime(row["created_time"], "%Y-%m-%d %H:%M:%S"),
                     #
                     "bundle": {
-                        "@id": APPLE_DATA[f"bundle/{row['bundle_id']}"],
-                        "@type": APPLE_TYPE["Bundle"],
+                        "@id": OWNLD[f"apple/bundle/{row['bundle_id']}"],
+                        "@type": OWNLD["apple#Bundle"],
                     }
                     if row["bundle_id"] is not None
                     else None,
                     "device": {
-                        "@id": APPLE_DATA[f"device/{row['device_id']}"],
-                        "@type": APPLE_TYPE["Device"],
+                        "@id": MY[f"apple/device/{row['device_id']}"],
+                        "@type": OWNLD["apple#Device"],
                     }
                     if row["device_id"] is not None
                     else None,
