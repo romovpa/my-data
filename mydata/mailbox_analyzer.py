@@ -22,7 +22,7 @@ import tldextract
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from mydata.parsers.mbox.email_data import Message
+from mydata.email_data import Message
 
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
 
