@@ -1,12 +1,3 @@
-pandas
-streamlit
-scrapy
-beautifulsoup4
-tqdm
-tldextract
-lxml
-python-dateutil
-rdflib
-flask
-osxphotos
-phonenumbers
+-e .[all]
+pre-commit
+build

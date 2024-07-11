@@ -76,7 +76,9 @@ class Message:
     """
 
     def __init__(self, message):
-        self.message = email.message_from_bytes(bytes(message), policy=email.policy.default)
+        self.message = email.message_from_bytes(
+            bytes(message), policy=email.policy.default
+        )
 
     def __getitem__(self, key):
         value = self.message[key]
@@ -102,7 +104,10 @@ class Message:
         if key not in self.message:
             return []
         values = [header_to_str(value) for value in self.message.get_all(key)]
-        return [Address.from_pair(addr_pair) for addr_pair in email.utils.getaddresses(values)]
+        return [
+            Address.from_pair(addr_pair)
+            for addr_pair in email.utils.getaddresses(values)
+        ]
 
     @property
     def message_id(self):

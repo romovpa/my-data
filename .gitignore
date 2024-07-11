@@ -164,3 +164,7 @@ exports
 cache
 
 .DS_Store
+
+
+# Auto-generated version file
+src/mydata/_version.py
