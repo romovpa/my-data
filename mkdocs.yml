@@ -1,5 +1,5 @@
 site_name: My Data
-site_url: https://romovpa.github.io/mydata/
+site_url: https://romovpa.github.io/my-data/
 site_description: Personal data discovery and analysis
 
 repo_url: https://github.com/romovpa/my-data
@@ -8,13 +8,6 @@ edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
-  - Own Your Data: data-ownership.md
-  - Access Your Data: data-access.md
-  - Linked Data Basics: linked-data.md
-  - Getting Started: getting-started.md
-  - SPARQL Examples: sparql-examples.md
-  - Contributing: contributing.md
-  - RDF Namespace Convention: namespace-convention.md
 
 theme:
   name: material

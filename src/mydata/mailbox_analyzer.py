@@ -22,7 +22,7 @@ import tldextract
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from mydata.parsers.mbox.email_data import Message
+from .email_data import Message
 
 warnings.filterwarnings("ignore", category=UserWarning, module="bs4")
 
@@ -50,7 +50,9 @@ def parse_mbox_message(mbox_msg):
     return {
         # Basic information
         "unixtime": msg.unixtime,
-        "datetime": msg.datetime.strftime("%Y-%m-%d %H:%M:%S") if msg.datetime else None,
+        "datetime": msg.datetime.strftime("%Y-%m-%d %H:%M:%S")
+        if msg.datetime
+        else None,
         "message_id": msg.message_id.strip() if msg.message_id is not None else None,
         "in_reply_to": msg.in_reply_to.strip() if msg.in_reply_to is not None else None,
         "thread_id": msg.thread_id.strip() if msg.thread_id is not None else None,
@@ -72,16 +74,23 @@ def parse_mbox_message(mbox_msg):
         ],
         "subject": msg.subject,
         # Header features
-        "headers": list(set(list(msg.message))),  # list of unique headers present in the msg
+        "headers": list(
+            set(list(msg.message))
+        ),  # list of unique headers present in the msg
         "labels": msg.labels,
-        "auto_submitted": msg["Auto-Submitted"],  # https://www.rfc-editor.org/rfc/rfc5436.html#section-2.7.1
-        "feedback_id": msg["Feedback-ID"] or msg["X-Feedback-ID"],  # Google Feedback Loop
+        "auto_submitted": msg[
+            "Auto-Submitted"
+        ],  # https://www.rfc-editor.org/rfc/rfc5436.html#section-2.7.1
+        "feedback_id": msg["Feedback-ID"]
+        or msg["X-Feedback-ID"],  # Google Feedback Loop
         "auto_response_suppress": msg["X-Auto-Response-Suppress"],
         # https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxcmail/ced68690-498a-4567-9d14-5c01f974d8b1?redirectedfrom=MSDN
         "list_id": msg["List-Id"],  # https://www.rfc-editor.org/rfc/rfc2919
         "list_unsubscribe": msg["List-Unsubscribe"],
         "precedence": msg["Precedence"],  # http://www.faqs.org/rfcs/rfc2076.html
-        "x_msfbl": msg["X-MSFBL"],  # "Other obscure headers" in https://www.arp242.net/autoreply.html
+        "x_msfbl": msg[
+            "X-MSFBL"
+        ],  # "Other obscure headers" in https://www.arp242.net/autoreply.html
         "x_loop": msg["X-Loop"],
         "x_autoreply": msg["X-Autoreply"],
         "x_mailer": msg["X-Mailer"],
@@ -144,7 +153,10 @@ def group_threads(messages):
         for msg in thread_messages[thread_id]:
             if msg["first_id"] == msg["message_id"]:
                 main_message = msg
-                if msg["in_reply_to"] is None or msg["in_reply_to"] == msg["message_id"]:
+                if (
+                    msg["in_reply_to"] is None
+                    or msg["in_reply_to"] == msg["message_id"]
+                ):
                     main_is_first = True
 
         thread = {
@@ -228,7 +240,12 @@ def extract_thread_features(thread, my_addrs=[]):
         is_generated |= any(
             (
                 PATTERN_NOREPLY.match(from_name) is not None,
-                len(GENERATED_HEADERS.intersection(map(lambda s: s.lower(), main["headers"]))) > 0,
+                len(
+                    GENERATED_HEADERS.intersection(
+                        map(lambda s: s.lower(), main["headers"])
+                    )
+                )
+                > 0,
             )
         )
 
@@ -253,13 +270,19 @@ def extract_thread_features(thread, my_addrs=[]):
         "from_domain": from_domain,
         "to_me": to_me,
         "recipients_to": len([addr for addr in main["to"] if addr.strip()]),
-        "recipients_all": len([addr for addr in (main["to"] + main["cc"] + main["bcc"]) if addr.strip()]),
+        "recipients_all": len(
+            [addr for addr in (main["to"] + main["cc"] + main["bcc"]) if addr.strip()]
+        ),
         "is_generated": is_generated,
         "num_messages": len(messages),
     }
 
     account = None
-    if features["datetime"] is not None and main["from"] not in my_addrs and to_me is not None:
+    if (
+        features["datetime"] is not None
+        and main["from"] not in my_addrs
+        and to_me is not None
+    ):
         service_id = from_domain
         account = (service_id, to_me)
 
@@ -290,7 +313,9 @@ def detect_accounts(threads, my_addrs, domain_rank=None):
             "last": acc_threads[-1]["datetime"],
             "threads": len(acc_threads),
             "generated": sum([int(thread["is_generated"]) for thread in acc_threads]),
-            "domain_rank": domain_rank.get(service_id) if domain_rank is not None else None,
+            "domain_rank": domain_rank.get(service_id)
+            if domain_rank is not None
+            else None,
         }
         accounts.append(record)
 
@@ -322,7 +347,10 @@ def parse_mbox(exports_dir="exports"):
                 if message_id in messages:
                     # Duplicate: leave the earliest message
                     previous_message = messages[message_id]
-                    if previous_message["unixtime"] is None or message["unixtime"] < previous_message["unixtime"]:
+                    if (
+                        previous_message["unixtime"] is None
+                        or message["unixtime"] < previous_message["unixtime"]
+                    ):
                         messages[message_id] = message
                 else:
                     messages[message_id] = message
@@ -331,7 +359,9 @@ def parse_mbox(exports_dir="exports"):
     return messages
 
 
-def read_alexa_ranks(url="http://s3.amazonaws.com/alexa-static/top-1m.csv.zip", filename="top-1m.csv"):
+def read_alexa_ranks(
+    url="http://s3.amazonaws.com/alexa-static/top-1m.csv.zip", filename="top-1m.csv"
+):
     """Downloads Alexa Top-1M domains. See https://gist.github.com/chilts/7229605"""
     response = requests.get(url, stream=True)
     archive = zipfile.ZipFile(io.BytesIO(response.content))
